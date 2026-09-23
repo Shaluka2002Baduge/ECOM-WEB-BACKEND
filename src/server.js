@@ -9,24 +9,32 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Start listening on configured port
-const server = app.listen(PORT, async () => {
-  console.log(`====================================================`);
-  console.log(`🚀 Ralahami Restaurant Backend Server Operational`);
-  console.log(`📡 Network Protocol: RESTful JSON over HTTP`);
-  console.log(`🔌 Listening Port   : http://localhost:${PORT}`);
-  console.log(`🌱 Environment      : ${process.env.NODE_ENV || 'development'}`);
-  console.log(`====================================================`);
+const { runAutoMigration } = require('./database/migrate');
 
-  // Verify PostgreSQL database connectivity
+let server;
+
+// Start server with automatic database migration
+const startServer = async () => {
   try {
-    const res = await pool.query('SELECT NOW() AS server_time');
-    console.log(`✅ [Database Connection]: PostgreSQL Connected Successfully at ${res.rows[0].server_time}`);
+    // 1. Verify and automatically apply schema and seed data if missing
+    await runAutoMigration();
   } catch (error) {
-    console.warn(`⚠️ [Database Connection Warning]: Could not connect to PostgreSQL: ${error.message}`);
-    console.warn(`👉 Ensure PostgreSQL service is running and DATABASE_URL in .env is configured.`);
+    console.warn(`⚠️ [Database Migration Warning]: Auto-migration could not complete: ${error.message}`);
+    console.warn(`👉 Verify that PostgreSQL service is active and credentials in .env are correct.`);
   }
-});
+
+  // 2. Start HTTP listener
+  server = app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(`🚀 Ralahami Restaurant Backend Server Operational`);
+    console.log(`📡 Network Protocol: RESTful JSON over HTTP`);
+    console.log(`🔌 Listening Port   : http://localhost:${PORT}`);
+    console.log(`🌱 Environment      : ${process.env.NODE_ENV || 'development'}`);
+    console.log(`====================================================`);
+  });
+};
+
+startServer();
 
 // Graceful shutdown handler
 const gracefulShutdown = (signal) => {

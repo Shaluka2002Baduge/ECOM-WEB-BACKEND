@@ -1,0 +1,328 @@
+{
+  "info": {
+    "_postman_id": "9b3484f9-b88a-4467-88ab-f2603847b2a1",
+    "name": "Ralahami Restaurant API Collection",
+    "description": "Enterprise Restaurant API Testing Suite for University of Bedfordshire (CIS007-3 / CIS045-3). Includes Authentication, Menu Browsing, Order State Machine, Reservations, and Payments.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & System",
+      "item": [
+        {
+          "name": "System Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Inspect server uptime and operational health."
+          }
+        },
+        {
+          "name": "API Gateway Endpoints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api",
+              "host": ["{{baseUrl}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register Customer Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data && json.data.token) {",
+                  "        pm.collectionVariables.set('authToken', json.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Nimal Fernando\",\n  \"email\": \"customer@ralahami.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+94771234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Registers a new customer and returns JWT access token."
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data && json.data.token) {",
+                  "        pm.collectionVariables.set('authToken', json.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ralahami.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates user and sets authToken variable."
+          }
+        },
+        {
+          "name": "Get Profile (Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu & Categories",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/menu/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "menu", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Menu Items (With Dietary Filters)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/menu/items?categoryId=2&isVegan=true&isHalal=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "menu", "items"],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "2"
+                },
+                {
+                  "key": "isVegan",
+                  "value": "true"
+                },
+                {
+                  "key": "isHalal",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Fetches dishes filtered by category, vegan status, and halal certification."
+          }
+        },
+        {
+          "name": "Get Menu Item By ID (With Recipe BOM)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/menu/items/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "menu", "items", "3"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders & State Machine",
+      "item": [
+        {
+          "name": "Create New Order (ACID Transaction)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data && json.data.id) {",
+                  "        pm.collectionVariables.set('orderId', json.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderType\": \"DINE_IN\",\n  \"notes\": \"Medium spicy, extra lime please.\",\n  \"items\": [\n    {\n      \"menuItemId\": 1,\n      \"quantity\": 2,\n      \"specialInstructions\": \"Extra hot chili dip\"\n    },\n    {\n      \"menuItemId\": 3,\n      \"quantity\": 1,\n      \"specialInstructions\": \"Extra thick coconut gravy\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            },
+            "description": "Creates an order inside a PostgreSQL ACID transaction and computes totals server-side."
+          }
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Transition Order Status (State Machine Guard)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}", "status"]
+            },
+            "description": "Validates state machine transitions (e.g. PLACED -> CONFIRMED -> PREPARING -> READY -> COMPLETED)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "item": [
+        {
+          "name": "Check Table Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/availability?time=2026-09-25T19:30:00Z&partySize=4",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations", "availability"],
+              "query": [
+                {
+                  "key": "time",
+                  "value": "2026-09-25T19:30:00Z"
+                },
+                {
+                  "key": "partySize",
+                  "value": "4"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
