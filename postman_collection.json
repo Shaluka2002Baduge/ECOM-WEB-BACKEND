@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b3484f9-b88a-4467-88ab-f2603847b2a1",
     "name": "Ralahami Restaurant API Collection",
-    "description": "Enterprise Restaurant API Testing Suite for University of Bedfordshire (CIS007-3 / CIS045-3). Includes Authentication, Menu Browsing, Order State Machine, Reservations, and Payments.",
+    "description": "Enterprise Restaurant API Testing Suite for University of Bedfordshire (CIS007-3 / CIS045-3). Includes Role-Based Access Control (RBAC), Authentication, Menu Browsing, Order State Machine, Reservations, and Payments.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -54,7 +54,7 @@
       ]
     },
     {
-      "name": "Authentication",
+      "name": "Authentication & RBAC",
       "item": [
         {
           "name": "Register Customer Account",
@@ -65,8 +65,9 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    var json = pm.response.json();",
-                  "    if (json.data && json.data.token) {",
-                  "        pm.collectionVariables.set('authToken', json.data.token);",
+                  "    var token = json.token || (json.data && json.data.token);",
+                  "    if (token) {",
+                  "        pm.collectionVariables.set('authToken', token);",
                   "    }",
                   "}"
                 ],
@@ -84,7 +85,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"displayName\": \"Nimal Fernando\",\n  \"email\": \"customer@ralahami.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+94771234567\"\n}"
+              "raw": "{\n  \"displayName\": \"Nimal Fernando\",\n  \"email\": \"customer@ralahami.lk\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+94771234567\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/register",
@@ -95,7 +96,7 @@
           }
         },
         {
-          "name": "Login User",
+          "name": "Login - Admin (ADMIN Role)",
           "event": [
             {
               "listen": "test",
@@ -103,8 +104,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    var json = pm.response.json();",
-                  "    if (json.data && json.data.token) {",
-                  "        pm.collectionVariables.set('authToken', json.data.token);",
+                  "    var token = json.token || (json.data && json.data.token);",
+                  "    if (token) {",
+                  "        pm.collectionVariables.set('authToken', token);",
                   "    }",
                   "}"
                 ],
@@ -122,14 +124,92 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"customer@ralahami.com\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"admin@ralahami.lk\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "login"]
             },
-            "description": "Authenticates user and sets authToken variable."
+            "description": "Authenticates as System Administrator (ADMIN role) and sets authToken."
+          }
+        },
+        {
+          "name": "Login - Kitchen Staff (KITCHEN_STAFF Role)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    var token = json.token || (json.data && json.data.token);",
+                  "    if (token) {",
+                  "        pm.collectionVariables.set('authToken', token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kitchen@ralahami.lk\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates as Kitchen Staff and sets authToken."
+          }
+        },
+        {
+          "name": "Login - Patron Customer (CUSTOMER Role)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    var token = json.token || (json.data && json.data.token);",
+                  "    if (token) {",
+                  "        pm.collectionVariables.set('authToken', token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patron@ralahami.lk\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates as Patron Customer and sets authToken."
           }
         },
         {
@@ -146,7 +226,80 @@
               "raw": "{{baseUrl}}/api/auth/me",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "me"]
-            }
+            },
+            "description": "Returns current virtual identity profile and role."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Clears HTTP-only session cookie."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin & Inventory (Role Guarded)",
+      "item": [
+        {
+          "name": "Get Admin Dashboard Stats (ADMIN / MANAGER)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "dashboard"]
+            },
+            "description": "Restricted strictly to ADMIN and MANAGER."
+          }
+        },
+        {
+          "name": "Get System Users Directory (ADMIN / MANAGER)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            },
+            "description": "Retrieves user directory with virtual roles."
+          }
+        },
+        {
+          "name": "Get Inventory Items (ADMIN / MANAGER)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inventory"]
+            },
+            "description": "Restricted strictly to ADMIN and MANAGER."
           }
         }
       ]
@@ -270,7 +423,7 @@
           }
         },
         {
-          "name": "Transition Order Status (State Machine Guard)",
+          "name": "Transition Order Status (KITCHEN_STAFF / ADMIN Guard)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -292,7 +445,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "orders", "{{orderId}}", "status"]
             },
-            "description": "Validates state machine transitions (e.g. PLACED -> CONFIRMED -> PREPARING -> READY -> COMPLETED)."
+            "description": "Restricted strictly to KITCHEN_STAFF and ADMIN."
           }
         }
       ]

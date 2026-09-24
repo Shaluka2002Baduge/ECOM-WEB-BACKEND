@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('./inventoryController');
-const { authenticateToken, authorizeRoles } = require('../../middleware/authAspect');
+const { verifyToken, requireRole } = require('../../middleware/authAspect');
 
-// Inventory endpoints are restricted to Staff (Kitchen Staff, Manager, Admin)
-router.use(authenticateToken);
-router.use(authorizeRoles('ADMIN', 'MANAGER', 'KITCHEN_STAFF'));
+// RBAC Role Guard: Inventory endpoints are strictly restricted to ADMIN and MANAGER
+router.use(verifyToken);
+router.use(requireRole(['ADMIN', 'MANAGER']));
 
 router.get('/', inventoryController.getInventory);
 router.post('/', inventoryController.addInventoryItem);
@@ -13,3 +13,4 @@ router.patch('/:id/stock', inventoryController.updateStock);
 router.post('/recipes', inventoryController.mapRecipe);
 
 module.exports = router;
+

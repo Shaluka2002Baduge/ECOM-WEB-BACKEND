@@ -23,7 +23,7 @@ const startServer = async () => {
     console.warn(`👉 Verify that PostgreSQL service is active and credentials in .env are correct.`);
   }
 
-  // 2. Start HTTP listener
+  // 2. Start HTTP listener with clean error listener
   server = app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`🚀 Ralahami Restaurant Backend Server Operational`);
@@ -32,36 +32,65 @@ const startServer = async () => {
     console.log(`🌱 Environment      : ${process.env.NODE_ENV || 'development'}`);
     console.log(`====================================================`);
   });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ [Port Collision]: Port ${PORT} is already in use by another process.`);
+      console.error(`👉 Running 'npx kill-port ${PORT}' will free the port.`);
+    } else {
+      console.error('[Server Error]:', err);
+    }
+    process.exit(1);
+  });
 };
 
 startServer();
 
-// Graceful shutdown handler
+// Rapid socket termination & graceful shutdown handler
 const gracefulShutdown = (signal) => {
-  console.log(`\n[Process] Received ${signal}. Commencing graceful server shutdown...`);
-  server.close(async () => {
-    console.log('[HTTP Server]: Closed remaining active connections.');
-    try {
-      await pool.end();
-      console.log('[Database Pool]: Successfully drained all client connections.');
-      process.exit(0);
-    } catch (err) {
-      console.error('[Database Pool]: Error while draining connections:', err);
-      process.exit(1);
+  console.log(`\n[Process] Received ${signal}. Releasing network port immediately...`);
+  if (server) {
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();
     }
-  });
+    server.close(async () => {
+      console.log('[HTTP Server]: Closed remaining active connections.');
+      try {
+        await pool.end();
+      } catch (err) {
+        // ignore on exit
+      }
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 
-  // Force close after 10s if shutdown hangs
+  // Force close after 1s so port 5000 is freed immediately for nodemon restarts
   setTimeout(() => {
-    console.error('[Process]: Graceful shutdown timed out. Forcing process termination.');
-    process.exit(1);
-  }, 10000);
+    process.exit(0);
+  }, 1000).unref();
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+// Nodemon graceful restart signal
+process.once('SIGUSR2', () => {
+  if (server) {
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();
+    }
+    server.close(() => {
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  } else {
+    process.kill(process.pid, 'SIGUSR2');
+  }
+});
+
 // Catch unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[CRITICAL] Unhandled Promise Rejection at:', promise, 'reason:', reason);
 });
+

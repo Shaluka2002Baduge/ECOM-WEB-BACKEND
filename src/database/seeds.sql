@@ -3,19 +3,31 @@
 -- University of Bedfordshire (CIS007-3 / CIS045-3)
 -- Initial Baseline Data for Testing and Verification
 -- Default password for all seeded users: "Password123!"
--- BCrypt Hash: $2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2
+-- BCrypt Hash (Salt Rounds: 10): $2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2
 -- ====================================================================
 
--- 1. USERS SEED
+-- 1. USERS SEED (Explicit CIS007-3 / CIS045-3 RBAC Virtual Identity Accounts)
 INSERT INTO users (id, display_name, email, password_hash, phone, role)
 VALUES
-  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'System Administrator', 'admin@ralahami.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+94771234567', 'ADMIN'),
-  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'General Manager', 'manager@ralahami.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+94772345678', 'MANAGER'),
-  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Head Chef Silva', 'kitchen@ralahami.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+94773456789', 'KITCHEN_STAFF'),
-  ('d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44', 'Dining Waiter Perera', 'waiter@ralahami.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+94774567890', 'WAITER'),
-  ('e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55', 'Nimal Fernando', 'customer@ralahami.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+94775678901', 'CUSTOMER'),
-  ('f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a66', 'Sarah Jenkins', 'sarah.j@example.com', '$2b$10$fG6T8XzWpZ7Z6bA07dUkue/zM8y12QeO9s3Y3cK5oJ12tH11Q1sW2', '+447911123456', 'CUSTOMER')
-ON CONFLICT (email) DO NOTHING;
+  -- Required Explicit Test Accounts (.lk)
+  ('11111111-2222-3333-4444-555555555501', 'System Administrator', 'admin@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94771234567', 'ADMIN'),
+  ('11111111-2222-3333-4444-555555555502', 'Kitchen Head Chef', 'kitchen@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94773456789', 'KITCHEN_STAFF'),
+  ('11111111-2222-3333-4444-555555555503', 'Patron Customer', 'patron@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94775678901', 'CUSTOMER'),
+  ('11111111-2222-3333-4444-555555555504', 'Operations Manager', 'manager@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94772345678', 'MANAGER'),
+
+  -- Retained Baseline Accounts (.com)
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'System Administrator', 'admin@ralahami.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94771234567', 'ADMIN'),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'General Manager', 'manager@ralahami.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94772345678', 'MANAGER'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Head Chef Silva', 'kitchen@ralahami.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94773456789', 'KITCHEN_STAFF'),
+  ('d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44', 'Dining Waiter Perera', 'waiter@ralahami.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94774567890', 'WAITER'),
+  ('e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55', 'Nimal Fernando', 'customer@ralahami.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94775678901', 'CUSTOMER'),
+  ('f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a66', 'Sarah Jenkins', 'sarah.j@example.com', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+447911123456', 'CUSTOMER')
+ON CONFLICT (email) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  phone = EXCLUDED.phone;
+
 
 -- 2. USER ADDRESSES SEED
 INSERT INTO user_addresses (user_id, address_line1, address_line2, city, state_province, postal_code, is_default)

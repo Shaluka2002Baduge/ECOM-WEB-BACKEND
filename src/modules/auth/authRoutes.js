@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('./authController');
-const { authenticateToken } = require('../../middleware/authAspect');
+const { verifyToken } = require('../../middleware/authAspect');
 
 // Public authentication routes
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+router.post('/logout', authController.logout);
 
-// Protected token inspection route
-router.get('/me', authenticateToken, authController.getMe);
+// Protected token inspection route (inspect virtual identity)
+router.get('/me', verifyToken, authController.getMe);
 
 module.exports = router;
+

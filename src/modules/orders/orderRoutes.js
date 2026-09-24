@@ -1,21 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const ordersController = require('./orderController');
-const { authenticateToken, authorizeRoles } = require('../../middleware/authAspect');
+const { verifyToken, requireRole } = require('../../middleware/authAspect');
 
 // All order endpoints require authentication
-router.use(authenticateToken);
+router.use(verifyToken);
 
 // Customer & Staff routes
 router.post('/', ordersController.createOrder);
 router.get('/', ordersController.getOrders);
 router.get('/:id', ordersController.getOrderById);
 
-// Order status state machine transition (Staff / Kitchen / Waiter / Manager / Admin)
+// Order status state machine transition strictly restricted to KITCHEN_STAFF and ADMIN
 router.patch(
   '/:id/status',
-  authorizeRoles('KITCHEN_STAFF', 'WAITER', 'MANAGER', 'ADMIN'),
+  requireRole(['KITCHEN_STAFF', 'ADMIN']),
   ordersController.updateOrderStatus
 );
 
 module.exports = router;
+

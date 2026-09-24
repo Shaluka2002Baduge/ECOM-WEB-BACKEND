@@ -9,6 +9,7 @@ const { errorAspect, AppError } = require('./middleware/errorAspect');
 
 // Modular Route Handlers
 const authRoutes = require('./modules/auth/authRoutes');
+const adminRoutes = require('./modules/admin/adminRoutes');
 const userRoutes = require('./modules/users/userRoutes');
 const staffRoutes = require('./modules/staff/staffRoutes');
 const menuRoutes = require('./modules/menu/menuRoutes');
@@ -40,6 +41,18 @@ app.use(loggingAspect);
 // ====================================================================
 // 2. HEALTH & SYSTEM METRICS
 // ====================================================================
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Ralahami Restaurant Enterprise Backend Operational',
+    version: '1.0.0',
+    documentation: '/api',
+    health: '/api/health',
+  });
+});
+
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -51,6 +64,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+
 app.get('/api', (req, res) => {
   res.status(200).json({
     success: true,
@@ -58,9 +72,11 @@ app.get('/api', (req, res) => {
     documentation: '/api/docs',
     endpoints: {
       auth: '/api/auth',
+      admin: '/api/admin',
       users: '/api/users',
       staff: '/api/staff',
       menu: '/api/menu',
+      menuItems: '/api/menu-items',
       inventory: '/api/inventory',
       orders: '/api/orders',
       reservations: '/api/reservations',
@@ -74,14 +90,18 @@ app.get('/api', (req, res) => {
 // 3. MODULAR DOMAIN ROUTE MOUNTING (High Cohesion, Low Coupling)
 // ====================================================================
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/menu', menuRoutes);
+app.use('/api/menu-items', menuRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
+
+
 
 // ====================================================================
 // 4. UNMATCHED ROUTE (404) HANDLER
