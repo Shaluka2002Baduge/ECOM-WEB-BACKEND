@@ -99,6 +99,16 @@ const runAutoMigration = async (options = {}) => {
 
   if (tablesExist && !force) {
     console.log('✅ [AutoMigration]: Database tables already present.');
+    try {
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp VARCHAR(10);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp_expires_at TIMESTAMPTZ;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number VARCHAR(100);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(150);
+      `);
+    } catch (colErr) {
+      console.warn(`[AutoMigration]: Optional column check notice: ${colErr.message}`);
+    }
     await ensureDefaultCredentials();
     return { migrated: false, seeded: true };
   }

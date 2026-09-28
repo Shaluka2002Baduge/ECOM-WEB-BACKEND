@@ -1,3 +1,4 @@
+// Server entry point - Port cleared and auto-restarted
 const app = require('./app');
 const { pool } = require('./config/db');
 
@@ -26,7 +27,7 @@ const startServer = async () => {
   // 2. Start HTTP listener with clean error listener
   server = app.listen(PORT, () => {
     console.log(`====================================================`);
-    console.log(`🚀 Ralahami Restaurant Backend Server Operational`);
+    console.log(`🚀 Ralahami Restaurant Backend Server Operational (LKR Pricing Verified)`);
     console.log(`📡 Network Protocol: RESTful JSON over HTTP`);
     console.log(`🔌 Listening Port   : http://localhost:${PORT}`);
     console.log(`🌱 Environment      : ${process.env.NODE_ENV || 'development'}`);

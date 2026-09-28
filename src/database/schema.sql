@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(25),
     role user_role NOT NULL DEFAULT 'CUSTOMER',
+    reset_otp VARCHAR(10),
+    reset_otp_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -188,6 +190,8 @@ EXECUTE FUNCTION update_timestamp_column();
 -- 4.9 ORDERS TABLE (Core State Machine Entity)
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
+    order_number VARCHAR(100),
+    recipient_name VARCHAR(150),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     status order_status NOT NULL DEFAULT 'PLACED',
     total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),

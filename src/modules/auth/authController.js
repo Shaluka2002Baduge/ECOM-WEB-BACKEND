@@ -1,4 +1,5 @@
 const authService = require('./authService');
+const emailService = require('../../services/emailService');
 const { AppError } = require('../../middleware/errorAspect');
 
 /**
@@ -24,6 +25,11 @@ const register = async (req, res, next) => {
       password,
       phone,
       role: safeRole,
+    });
+
+    // Trigger branded Welcome Email asynchronously without blocking client response
+    emailService.sendWelcomeEmail(email, displayName).catch((err) => {
+      console.error(`[AuthController] Async welcome email failed for ${email}:`, err.message);
     });
 
     res.status(201).json({
@@ -129,10 +135,88 @@ const logout = async (req, res, next) => {
   }
 };
 
+/**
+ * Handle forgot password request
+ * POST /api/auth/forgot-password: { email }
+ */
+const forgotPassword = async (req, res, next) => {
+  try {
+    const email = req.body?.email?.trim().toLowerCase();
+    if (!email) {
+      throw new AppError('Email address is required.', 400);
+    }
+
+    const { user, otpCode } = await authService.forgotPassword({ email });
+
+    // Explicitly await email dispatch so any SMTP handshake errors are visible in terminal
+    await emailService.sendPasswordResetOtp(user.email, otpCode);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email.',
+    });
+  } catch (error) {
+    console.error('❌ [AUTH CONTROLLER] Forgot password error:', error.message || error);
+    next(error);
+  }
+};
+
+/**
+ * Handle OTP verification request
+ * POST /api/auth/verify-otp: { email, otp }
+ */
+const verifyOtp = async (req, res, next) => {
+  try {
+    const email = req.body?.email?.trim().toLowerCase();
+    const otp = req.body?.otp;
+    if (!email || !otp) {
+      throw new AppError('Email and OTP code are required.', 400);
+    }
+
+    await authService.verifyOtp({ email, otp });
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully. You may now reset your password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Handle password reset request
+ * POST /api/auth/reset-password: { email, otp, newPassword }
+ */
+const resetPassword = async (req, res, next) => {
+  try {
+    const email = req.body?.email?.trim().toLowerCase();
+    const otp = req.body?.otp;
+    const newPassword = req.body?.newPassword || req.body?.password;
+
+    if (!email || !otp || !newPassword) {
+      throw new AppError('Email, OTP code, and new password are required.', 400);
+    }
+
+    await authService.resetPassword({ email, otp, newPassword });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
   logout,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 };
+
 

@@ -142,6 +142,82 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
       expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
       expect(mockClient.release).toHaveBeenCalled();
     });
+
+    test('Accepts flexible item ID fields (id, menu_item_id, itemId) seamlessly', async () => {
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      jest.spyOn(db, 'getClient').mockResolvedValueOnce(mockClient);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 5, name: 'Hoppers Trio', price: '400.00', is_available: true },
+            { id: 8, name: 'Faluda Royal', price: '350.00', is_available: true },
+          ],
+        }) // menu items lookup
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 77,
+              user_id: null,
+              status: 'PLACED',
+              total_amount: '750.00',
+              order_number: 'RAALAHAMI-77',
+            },
+          ],
+        }) // order insert
+        .mockResolvedValueOnce({}) // line item 1
+        .mockResolvedValueOnce({}) // line item 2
+        .mockResolvedValueOnce({}); // COMMIT
+
+      // Item 1 uses `id`, Item 2 uses `itemId`
+      const orderPayload = {
+        items: [
+          { id: 5, quantity: 1 },
+          { itemId: 8, qty: 1 },
+        ],
+        orderType: 'DELIVERY',
+      };
+
+      const created = await orderService.createOrder(null, orderPayload);
+
+      expect(created.id).toBe(77);
+      expect(created.items).toHaveLength(2);
+      expect(created.items[0].menuItemId).toBe(5);
+      expect(created.items[1].menuItemId).toBe(8);
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+    });
+
+    test('Throws descriptive 400 error when an item in cart is missing an ID', async () => {
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      jest.spyOn(db, 'getClient').mockResolvedValueOnce(mockClient);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const orderPayload = {
+        items: [
+          { name: 'Mystery Dish', quantity: 2 }, // Missing id, itemId, menuItemId
+        ],
+      };
+
+      await expect(
+        orderService.createOrder(null, orderPayload)
+      ).rejects.toThrow(/Invalid item in cart. Missing item ID./i);
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[ORDER ERROR] Received item without ID:'),
+        expect.anything()
+      );
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   describe('HTTP Route Guards & Role Access', () => {
@@ -179,6 +255,93 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.status).toBe('PREPARING');
+    });
+  });
+
+  describe('Flexible Order Lookup by ID and Alphanumeric Order Number', () => {
+    test('Successfully retrieves order by alphanumeric order number (e.g. RAALAHAMI-515712)', async () => {
+      // Mock order query and items query
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 99,
+              order_number: 'RAALAHAMI-515712',
+              user_id: null,
+              status: 'PLACED',
+              total_amount: '2500.00',
+              order_type: 'DELIVERY',
+              customer_name: 'Royal Patron',
+              customer_email: 'patron@example.com',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              menu_item_id: 10,
+              name: 'Royal Biryani',
+              quantity: 2,
+              unit_price: '1250.00',
+              special_instructions: 'Extra raita',
+              line_total: '2500.00',
+            },
+          ],
+        });
+
+      const response = await request(app).get('/api/orders/RAALAHAMI-515712');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.order_number).toBe('RAALAHAMI-515712');
+      expect(response.body.data.items).toHaveLength(1);
+      expect(response.body.data.items[0].name).toBe('Royal Biryani');
+    });
+
+    test('Successfully retrieves order by numeric ID (e.g. 101)', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 101,
+              order_number: 'RAALAHAMI-101',
+              user_id: null,
+              status: 'CONFIRMED',
+              total_amount: '1800.00',
+              order_type: 'DINE_IN',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 2,
+              menu_item_id: 12,
+              name: 'Lamprais',
+              quantity: 1,
+              unit_price: '1800.00',
+              line_total: '1800.00',
+            },
+          ],
+        });
+
+      const response = await request(app).get('/api/orders/101');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.id).toBe(101);
+      expect(response.body.data.items).toHaveLength(1);
+    });
+
+    test('Returns 404 when order is not found by identifier', async () => {
+      jest.spyOn(db, 'query').mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app).get('/api/orders/RAALAHAMI-NONEXISTENT');
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toMatch(/Order not found/i);
     });
   });
 });

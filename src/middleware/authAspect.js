@@ -101,14 +101,64 @@ const requireRole = (...roles) => {
   };
 };
 
+/**
+ * Optional Authentication Guard
+ * Populates req.user if a valid token is present, but permits guest requests without error.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+const optionalToken = (req, res, next) => {
+  let token = null;
+
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  if (authHeader) {
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    } else {
+      token = authHeader.trim();
+    }
+  }
+
+  if (!token && req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  }
+
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const secret = process.env.JWT_SECRET || 'ralahami_fallback_secret_key';
+    const decoded = jwt.verify(token, secret);
+
+    req.user = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+      displayName: decoded.displayName || decoded.display_name,
+      display_name: decoded.displayName || decoded.display_name,
+    };
+  } catch (error) {
+    // Silently proceed as guest if optional token is expired or malformed
+    req.user = null;
+  }
+
+  next();
+};
+
 // Aliases for seamless backward compatibility
 const authenticateToken = verifyToken;
 const authorizeRoles = requireRole;
 
 module.exports = {
   verifyToken,
+  optionalToken,
   authenticateToken,
   requireRole,
   authorizeRoles,
 };
+
 
