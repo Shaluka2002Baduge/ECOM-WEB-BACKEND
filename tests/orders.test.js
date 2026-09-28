@@ -344,4 +344,99 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
       expect(response.body.message).toMatch(/Order not found/i);
     });
   });
+
+  describe('Dine-In Order & Table Status Integration', () => {
+    test('Dine-In checkout creates live reservation entry with status CONFIRMED', async () => {
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({
+          rows: [{ id: 1, name: 'Clay Pot Rice', price: '1200.00', is_available: true }],
+        }) // menu query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 555,
+              order_number: 'RAALAHAMI-555000',
+              status: 'PLACED',
+              total_amount: '1200.00',
+              order_type: 'DINE_IN',
+              recipient_name: 'Dr. Senaka Perera',
+            },
+          ],
+        }) // order insert
+        .mockResolvedValueOnce({}) // order item insert
+        .mockResolvedValueOnce({}); // COMMIT
+
+      jest.spyOn(db, 'getClient').mockResolvedValueOnce(mockClient);
+
+      // db.query for conflict check (table lookup, conflict query) and reservation insert (table lookup, insert)
+      const dbQuerySpy = jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 4, hall_name: 'Royal Dining Hall', table_number: 'Table 1', status: 'AVAILABLE' }] }) // conflict table lookup
+        .mockResolvedValueOnce({ rows: [] }) // conflict query (no conflict)
+        .mockResolvedValueOnce({ rows: [{ id: 4, hall_name: 'Royal Dining Hall', table_number: 'Table 1' }] }) // reservation table lookup
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 99,
+              user_id: null,
+              table_id: 4,
+              patron_name: 'Dr. Senaka Perera',
+              phone: '+94771234567',
+              party_size: 4,
+              reservation_time: '2026-10-01T19:30:00.000Z',
+              status: 'CONFIRMED',
+              order_id: 555,
+            },
+          ],
+        }); // reservation insert
+
+      const response = await request(app)
+        .post('/api/orders')
+        .send({
+          fulfillment_type: 'Dine-In',
+          recipientName: 'Dr. Senaka Perera',
+          phone: '+94771234567',
+          party_size: 4,
+          reservation_time: '2026-10-01T19:30:00.000Z',
+          items: [{ id: 1, quantity: 1 }],
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.id).toBe(555);
+      expect(response.body.data.reservation).toBeDefined();
+      expect(response.body.data.reservation.status).toBe('CONFIRMED');
+      expect(response.body.data.reservation.patron_name).toBe('Dr. Senaka Perera');
+    });
+
+    test('PUT /api/reservations/tables/:id toggles table status', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 2, table_number: 'T-02', seating_capacity: 4 }] }) // table check
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 2,
+              table_number: 'T-02',
+              seating_capacity: 4,
+              location_description: 'Window View',
+              is_active: false,
+              status: 'OCCUPIED',
+            },
+          ],
+        }); // update query
+
+      const response = await request(app)
+        .put('/api/reservations/tables/2')
+        .send({ status: 'OCCUPIED' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('OCCUPIED');
+    });
+  });
 });

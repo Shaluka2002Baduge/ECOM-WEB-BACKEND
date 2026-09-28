@@ -101,10 +101,34 @@ const runAutoMigration = async (options = {}) => {
     console.log('✅ [AutoMigration]: Database tables already present.');
     try {
       await pool.query(`
+        DO $$ BEGIN
+          ALTER TYPE reservation_status ADD VALUE IF NOT EXISTS 'COMPLETED';
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+
         ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp VARCHAR(10);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp_expires_at TIMESTAMPTZ;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number VARCHAR(100);
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(150);
+        ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_level VARCHAR(50);
+        ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS dietary_tags TEXT[];
+        ALTER TABLE menu_items ALTER COLUMN image_alt_text DROP NOT NULL;
+        
+        ALTER TABLE tables ADD COLUMN IF NOT EXISTS hall_name VARCHAR(100) DEFAULT 'Royal Dining Hall';
+        ALTER TABLE tables ADD COLUMN IF NOT EXISTS capacity INT DEFAULT 4;
+        ALTER TABLE tables ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'AVAILABLE';
+        ALTER TABLE tables DROP CONSTRAINT IF EXISTS tables_table_number_key;
+        
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS hall_name VARCHAR(100);
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS table_number VARCHAR(50);
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS reservation_date DATE;
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS patron_name VARCHAR(150);
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS order_id INT REFERENCES orders(id) ON DELETE SET NULL;
+        ALTER TABLE reservations ADD COLUMN IF NOT EXISTS booking_source VARCHAR(100) DEFAULT 'Online / App';
+        ALTER TABLE reservations ALTER COLUMN table_id DROP NOT NULL;
       `);
     } catch (colErr) {
       console.warn(`[AutoMigration]: Optional column check notice: ${colErr.message}`);

@@ -102,25 +102,36 @@ VALUES
   (8, 9, 1.00)
 ON CONFLICT (menu_item_id, inventory_item_id) DO NOTHING;
 
--- 7. DINING TABLES SEED
-INSERT INTO tables (id, table_number, seating_capacity, location_description, is_active)
+-- 7. DINING TABLES SEED (3 Halls with 4 Tables Each = 12 Tables)
+INSERT INTO tables (id, hall_name, table_number, capacity, seating_capacity, location_description, is_active, status)
 VALUES
-  (1, 'T-01', 2, 'Cozy window corner view', TRUE),
-  (2, 'T-02', 2, 'Intimate garden veranda', TRUE),
-  (3, 'T-03', 4, 'Central dining hall center', TRUE),
-  (4, 'T-04', 4, 'Central dining hall window', TRUE),
-  (5, 'T-05', 6, 'Family banquet booth', TRUE),
-  (6, 'T-06', 6, 'Family banquet booth', TRUE),
-  (7, 'T-07', 8, 'Executive private alcove', TRUE),
-  (8, 'T-08', 10, 'VIP Private dining suite', TRUE)
-ON CONFLICT (id) DO UPDATE SET table_number = EXCLUDED.table_number;
+  -- Royal Dining Hall (Tables 1-4)
+  (1, 'Royal Dining Hall', 'Table 1', 4, 4, 'Royal Dining Hall - Table 1', TRUE, 'AVAILABLE'),
+  (2, 'Royal Dining Hall', 'Table 2', 4, 4, 'Royal Dining Hall - Table 2', TRUE, 'AVAILABLE'),
+  (3, 'Royal Dining Hall', 'Table 3', 4, 4, 'Royal Dining Hall - Table 3', TRUE, 'AVAILABLE'),
+  (4, 'Royal Dining Hall', 'Table 4', 6, 6, 'Royal Dining Hall - Table 4', TRUE, 'AVAILABLE'),
 
--- 8. SAMPLE RESERVATIONS SEED
-INSERT INTO reservations (id, user_id, table_id, party_size, reservation_time, status, special_requests)
-VALUES
-  (1, 'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55', 3, 4, CURRENT_TIMESTAMP + INTERVAL '2 days', 'CONFIRMED', 'High chair needed for child.'),
-  (2, 'f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a66', 1, 2, CURRENT_TIMESTAMP + INTERVAL '1 day', 'PENDING', 'Window seating preferred for anniversary.')
-ON CONFLICT (id) DO NOTHING;
+  -- Balcony Court (Tables 1-4)
+  (5, 'Balcony Court', 'Table 1', 2, 2, 'Balcony Court - Table 1', TRUE, 'AVAILABLE'),
+  (6, 'Balcony Court', 'Table 2', 2, 2, 'Balcony Court - Table 2', TRUE, 'AVAILABLE'),
+  (7, 'Balcony Court', 'Table 3', 4, 4, 'Balcony Court - Table 3', TRUE, 'AVAILABLE'),
+  (8, 'Balcony Court', 'Table 4', 4, 4, 'Balcony Court - Table 4', TRUE, 'AVAILABLE'),
+
+  -- Private Suite (Tables 1-4)
+  (9, 'Private Suite', 'Table 1', 6, 6, 'Private Suite - Table 1', TRUE, 'AVAILABLE'),
+  (10, 'Private Suite', 'Table 2', 8, 8, 'Private Suite - Table 2', TRUE, 'AVAILABLE'),
+  (11, 'Private Suite', 'Table 3', 8, 8, 'Private Suite - Table 3', TRUE, 'AVAILABLE'),
+  (12, 'Private Suite', 'Table 4', 12, 12, 'Private Suite - Table 4', TRUE, 'AVAILABLE')
+ON CONFLICT (id) DO UPDATE SET
+  hall_name = EXCLUDED.hall_name,
+  table_number = EXCLUDED.table_number,
+  capacity = EXCLUDED.capacity,
+  seating_capacity = EXCLUDED.seating_capacity,
+  location_description = EXCLUDED.location_description,
+  is_active = EXCLUDED.is_active,
+  status = EXCLUDED.status;
+
+-- 8. RESERVATIONS (Clean slate - no dummy reservations auto-seeded)
 
 -- 9. SAMPLE ORDERS & ORDER ITEMS SEED
 INSERT INTO orders (id, user_id, status, total_amount, order_type, notes)

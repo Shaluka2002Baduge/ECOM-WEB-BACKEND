@@ -2,13 +2,14 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 
 /**
- * Enterprise Email Notification Service for Ralahami Restaurant
+ * Enterprise Email Notification Service for Raalahami Restaurant
  * Compliant with University of Bedfordshire (CIS007-3 / CIS045-3) standards.
  * 
  * Features:
  * - Real Gmail SMTP dispatch using app credentials
  * - Prominent OTP console dispatch for development safety
- * - Branded HTML templates for Welcome, Order Confirmation, and Password Reset
+ * - Royal Heritage Dark & Gold HTML template for Dine-In Reservation Feast Confirmations
+ * - Branded HTML templates for Delivery, Takeaway, Welcome, and Password Reset
  */
 
 const smtpPass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
@@ -35,7 +36,188 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 /**
- * Base email layout wrapper providing unified Raalahami branding & styling
+ * Helper to format dining dates (e.g. "2026-09-29" -> "September 29, 2026")
+ */
+const formatDiningDate = (dateVal) => {
+  if (!dateVal) return 'Confirmed Reservation';
+  try {
+    const rawStr = String(dateVal).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawStr)) {
+      const [year, month, day] = rawStr.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
+      return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (${rawStr})`;
+    }
+    const d = new Date(rawStr);
+    if (!isNaN(d.getTime())) {
+      const formatted = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const isoPart = d.toISOString().split('T')[0];
+      return `${formatted} (${isoPart})`;
+    }
+  } catch (e) {}
+  return String(dateVal);
+};
+
+/**
+ * Helper to format dining time slots (e.g. "19:30" -> "07:30 PM (19:30)")
+ */
+const formatDiningTime = (timeVal) => {
+  if (!timeVal) return 'Confirmed Time';
+  try {
+    let t = String(timeVal).trim();
+    if (t.includes('T')) {
+      t = t.split('T')[1].substring(0, 5);
+    }
+    const match = t.match(/^(\d{1,2}):(\d{2})/);
+    if (match) {
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2];
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
+      const paddedHours = formattedHours < 10 ? `0${formattedHours}` : `${formattedHours}`;
+      return `${paddedHours}:${minutes} ${ampm} (${t})`;
+    }
+  } catch (e) {}
+  return String(timeVal);
+};
+
+/**
+ * Resolves formatted payment method display name based on payment method and order type
+ */
+const resolvePaymentMethodName = (method, orderType) => {
+  const type = (orderType || '').toUpperCase();
+  const m = (method || '').toUpperCase();
+
+  if (m.includes('CASH') || m.includes('COD') || m.includes('COUNTER') || m.includes('SETTLEMENT')) {
+    if (type === 'DELIVERY' || type.includes('DELIVERY')) {
+      return 'Cash on Delivery (COD)';
+    }
+    if (type === 'TAKEAWAY' || type === 'DINE_IN' || type.includes('TAKEAWAY') || type.includes('DINE')) {
+      return 'Counter Settlement';
+    }
+    return 'Cash / Counter Settlement';
+  }
+
+  if (m.includes('CARD')) return 'Credit / Debit Card (Online)';
+  if (m.includes('WALLET')) return 'Digital Wallet';
+  return method || 'Counter Settlement';
+};
+
+/**
+ * Royal Heritage Dine-In Email HTML Generator
+ * Generates an executive dark & gold themed email template
+ */
+const generateDineInEmailHtml = ({
+  customerName,
+  orderId,
+  diningDate,
+  diningTime,
+  hallName,
+  tableNumber,
+  partySize,
+  orderItems = [],
+  totalAmount,
+}) => {
+  const cleanCustomerName = (customerName || 'Valued Guest').replace(/^Hon\.\s*/i, '').trim();
+  const formattedDiningDate = formatDiningDate(diningDate);
+  const formattedDiningTime = formatDiningTime(diningTime);
+  const formattedTotalAmount = typeof totalAmount === 'number' ? totalAmount.toFixed(2) : String(totalAmount || '0.00');
+
+  const orderItemsRows = (orderItems || []).map((item, idx) => {
+    const name = item.name || item.dish || item.dishName || item.menu_item_name || item.title || `Dish #${item.menuItemId || item.id || idx + 1}`;
+    const quantity = Number(item.quantity || item.qty || 1);
+    const unitPrice = parseFloat(item.unitPrice || item.unit_price || item.price || 0);
+    const lineTotal = (quantity * unitPrice).toFixed(2);
+
+    return `
+      <tr style="border-bottom: 1px solid #374151;">
+        <td style="padding: 8px 0; color: #e5e7eb;">${name} x ${quantity}</td>
+        <td style="padding: 8px 0; text-align: right; color: #fbbf24;">Rs. ${lineTotal}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="background-color: #0b0f19; font-family: 'Georgia', serif; color: #f3f4f6; padding: 40px 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #111827; border: 1px solid #d97706; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        
+        <!-- Header -->
+        <div style="background-color: #1f2937; padding: 25px; text-align: center; border-bottom: 2px solid #d97706;">
+          <h1 style="color: #f59e0b; margin: 0; font-size: 26px; letter-spacing: 2px; text-transform: uppercase;">Raalahami</h1>
+          <p style="color: #9ca3af; margin: 5px 0 0; font-size: 13px; letter-spacing: 1px;">Royal Heritage Fine Dining</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 30px;">
+          <h2 style="color: #fbbf24; font-size: 20px; margin-top: 0;">Royal Court Reservation Confirmed</h2>
+          <p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">
+            Ayubowan <b>Hon. ${cleanCustomerName}</b><br/>
+            Greetings <strong>${customerName}</strong>,<br/>
+            Your royal feast and private dining chamber have been successfully prepared and reserved.
+          </p>
+
+          <!-- Reservation Coordinates Card -->
+          <div style="background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 18px; border-radius: 6px; margin: 25px 0;">
+            <h3 style="color: #f59e0b; margin: 0 0 12px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Table Coordinates</h3>
+            <!-- 🍽️ CONFIRMED ROYAL TABLE RESERVATION -->
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #e2e8f0;">
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8; width: 40%;">Dining Date:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right;">${formattedDiningDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Dining Time:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #fbbf24;">${formattedDiningTime}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Chamber / Hall:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right;">${hallName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Assigned Table:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #34d399;">${tableNumber}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Party Size:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right;">${partySize} Guests</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Order Reference:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #93c5fd;">#${orderId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; color: #94a3b8;">Royal Delivery:</td>
+                <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #a7f3d0;">Royal Delivery: Rs. 0.00 (Dine-In Complimentary)</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Feast Summary -->
+          <h3 style="color: #f59e0b; font-size: 16px; margin-bottom: 10px;">Pre-Ordered Feast Items</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+            ${orderItemsRows || '<tr><td colspan="2" style="padding: 8px 0; color: #9ca3af; text-align: center;">No pre-ordered dishes (A la carte)</td></tr>'}
+            <tr>
+              <td style="padding: 12px 0; font-weight: bold; color: #f3f4f6;">Total Due</td>
+              <td style="padding: 12px 0; font-weight: bold; text-align: right; color: #fbbf24; font-size: 16px;">Rs. ${formattedTotalAmount} <!-- LKR ${formattedTotalAmount} --></td>
+            </tr>
+          </table>
+
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; text-align: center;">
+            Please arrive 10 minutes prior to your reservation time. Your table will be held for 15 minutes past reserved time.<br/>
+            For protocol modifications, contact our concierge desk.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #1f2937; padding: 15px; text-align: center; border-top: 1px solid #374151; font-size: 11px; color: #6b7280;">
+          © 2026 Raalahami Fine Dining. All Royal Rights Reserved.
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+/**
+ * Standard Email Template Wrapper for Delivery and Takeaway receipts
  */
 const renderEmailTemplate = ({ preheader, title, contentHtml, footerNote }) => {
   return `<!DOCTYPE html>
@@ -142,15 +324,6 @@ const renderEmailTemplate = ({ preheader, title, contentHtml, footerNote }) => {
       color: #0f172a;
       border-top: 2px solid #cbd5e1;
     }
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 600;
-      background-color: #dcfce7;
-      color: #15803d;
-    }
   </style>
 </head>
 <body>
@@ -179,8 +352,6 @@ const renderEmailTemplate = ({ preheader, title, contentHtml, footerNote }) => {
 
 /**
  * 1. Send Welcome Email upon registration
- * @param {string} toEmail - Dynamic recipient email
- * @param {string} displayName - Customer display name
  */
 const sendWelcomeEmail = async (toEmail, displayName) => {
   const name = displayName || 'Valued Guest';
@@ -202,7 +373,7 @@ const sendWelcomeEmail = async (toEmail, displayName) => {
         <h4 style="margin: 0 0 6px 0; color: #065f46;">What you can do with your account:</h4>
         <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px;">
           <li style="margin-bottom: 4px;"><strong>Order Online:</strong> Seamless Dine-In, Takeaway, or Doorstep Delivery.</li>
-          <li style="margin-bottom: 4px;"><strong>Reserve Tables:</strong> Reserve your favorite table in advance.</li>
+          <li style="margin-bottom: 4px;"><strong>Reserve Tables:</strong> Reserve your favorite table across our 3 luxurious dining halls.</li>
           <li style="margin-bottom: 4px;"><strong>Track Orders:</strong> Real-time kitchen status from prep to table.</li>
         </ul>
       </div>
@@ -234,32 +405,7 @@ const sendWelcomeEmail = async (toEmail, displayName) => {
 };
 
 /**
- * Resolves formatted payment method display name based on payment method and order type
- */
-const resolvePaymentMethodName = (method, orderType) => {
-  const type = (orderType || '').toUpperCase();
-  const m = (method || '').toUpperCase();
-
-  // If it's a cash/settlement payment:
-  if (m.includes('CASH') || m.includes('COD') || m.includes('COUNTER') || m.includes('SETTLEMENT')) {
-    if (type === 'DELIVERY' || type.includes('DELIVERY')) {
-      return 'Cash on Delivery (COD)';
-    }
-    if (type === 'TAKEAWAY' || type === 'DINE_IN' || type.includes('TAKEAWAY') || type.includes('DINE')) {
-      return 'Counter Settlement';
-    }
-    return 'Cash / Counter Settlement';
-  }
-
-  if (m.includes('CARD')) return 'Credit / Debit Card (Online)';
-  if (m.includes('WALLET')) return 'Digital Wallet';
-  return method || 'Counter Settlement';
-};
-
-/**
- * 2. Send Order Confirmation Email (both guest and registered users)
- * @param {string} toEmail - Dynamic recipient email
- * @param {Object} receiptData - Placed order receipt details
+ * 2. Send Order Confirmation Email (Supports DINE_IN, TAKEAWAY, DELIVERY)
  */
 const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
   const orderId = receiptData.orderId || receiptData.orderNumber || receiptData.id || 'N/A';
@@ -270,7 +416,14 @@ const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
   const deliveryStreetAddress = receiptData.deliveryStreetAddress || receiptData.deliveryAddress || receiptData.address || 'Address provided at delivery';
   const phone = receiptData.phone || receiptData.phoneNumber || receiptData.contactPhone || 'N/A';
   const deliveryInstructions = receiptData.deliveryInstructions || receiptData.notes || 'None';
-  const reservation = receiptData.reservation || null;
+  const reservation = receiptData.reservation || {};
+
+  // Extract Dine-In coordinates
+  const diningDate = receiptData.diningDate || reservation.diningDate || reservation.reservation_date || reservation.date || 'Confirmed Reservation';
+  const diningTime = receiptData.diningTime || reservation.diningTime || reservation.reservation_time || reservation.time || 'Confirmed Time';
+  const hallName = receiptData.hallName || reservation.hallName || reservation.hall_name || reservation.seatingPreference || reservation.seatingArea || 'Royal Dining Hall';
+  const tableNumber = receiptData.tableNumber || reservation.tableNumber || reservation.table_number || 'Table 1';
+  const partySize = receiptData.partySize || reservation.partySize || reservation.party_size || reservation.guestsCount || 2;
 
   // Full itemized list
   const rawItems = receiptData.items || receiptData.orderItems || [];
@@ -335,63 +488,35 @@ const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
     ? parseFloat(providedTotal).toFixed(2)
     : (Number(subtotal) + Number(serviceVat) + Number(deliveryFeeNum)).toFixed(2);
 
-  // Conditional Order Type Boxes
-  let orderTypeBoxHtml = '';
-  let nextStepsHtml = '';
+  const subject = `Raalahami Royal Dining - Order Confirmation & Bill Receipt #${orderId}`;
+  let html = '';
 
+  // DINE-IN: Use Royal Heritage Dark & Gold Template
   if (orderType === 'DINE_IN') {
-    const diningDate = reservation?.diningDate || reservation?.date || 'Confirmed Reservation';
-    const diningTime = reservation?.diningTime || reservation?.time || 'Confirmed Time';
-    const partySize = reservation?.guestsCount || reservation?.partySize || 2;
-    const seatingArea = reservation?.seatingPreference || reservation?.seatingArea || 'Royal Dining Hall';
-
-    orderTypeBoxHtml = `
-      <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 18px; margin: 20px 0;">
-        <h3 style="color: #166534; margin: 0 0 12px 0; font-size: 16px; font-weight: 700;">
-          🍽️ CONFIRMED ROYAL TABLE RESERVATION
-        </h3>
-        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563; width: 35%;"><strong>Dining Date:</strong></td>
-            <td style="padding: 5px 0; color: #111827; font-weight: 600;">${diningDate}</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Time Slot:</strong></td>
-            <td style="padding: 5px 0; color: #111827; font-weight: 600;">${diningTime}</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Party Size:</strong></td>
-            <td style="padding: 5px 0; color: #111827; font-weight: 600;">${partySize} Guests</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Seating Area:</strong></td>
-            <td style="padding: 5px 0; color: #111827; font-weight: 600;">${seatingArea}</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Notice:</strong></td>
-            <td style="padding: 5px 0; color: #b45309; font-weight: 600;">Your table will be held for 15 minutes past reserved time.</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Delivery Fee:</strong></td>
-            <td style="padding: 5px 0; color: #15803d; font-weight: 600;">Royal Delivery: Rs. 0.00 (Dine-In Complimentary)</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px 0; color: #4b5563;"><strong>Payment Method:</strong></td>
-            <td style="padding: 5px 0; color: #111827; font-weight: 600;">${paymentMethod}</td>
-          </tr>
-        </table>
-      </div>
-    `;
-
-    nextStepsHtml = `
-      <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.6;">
-        <li><strong>Arrival & Check-in:</strong> Please quote your Order Reference Number <strong>#${orderId}</strong> at the host concierge.</li>
-        <li><strong>Table Holding Policy:</strong> Your table will be held for 15 minutes past reserved time.</li>
-        <li><strong>Payment Method:</strong> ${paymentMethod}.</li>
-      </ul>
-    `;
+    html = generateDineInEmailHtml({
+      customerName: recipientName,
+      customerEmail: toEmail,
+      orderId,
+      diningDate,
+      diningTime,
+      hallName,
+      tableNumber,
+      partySize,
+      orderItems: items,
+      totalAmount,
+    });
   } else if (orderType === 'TAKEAWAY') {
-    orderTypeBoxHtml = `
+    // TAKEAWAY: Golden Warm Pickup Template
+    const contentHtml = `
+      <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px;">
+        <h2 style="color: #064e3b; margin: 0 0 6px 0; font-size: 20px;">Raalahami Royal Dining - Takeaway Order Receipt</h2>
+        <p style="margin: 0; color: #64748b; font-size: 14px;">Order Reference Number: <strong style="color: #065f46; font-size: 16px;">#${orderId}</strong></p>
+      </div>
+
+      <p style="font-size: 15px; color: #334155; line-height: 1.6;">
+        Ayubowan <b>${recipientName}</b>, thank you for placing your takeaway order with <b>Raalahami Restaurant</b>.
+      </p>
+
       <div style="background-color: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 18px; margin: 20px 0;">
         <h3 style="color: #854d0e; margin: 0 0 12px 0; font-size: 16px; font-weight: 700;">
           🥡 ROYAL TAKEAWAY & PICKUP CONFIRMATION
@@ -425,18 +550,72 @@ const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
           ` : ''}
         </table>
       </div>
+
+      <!-- Itemized Bill Table -->
+      <table class="table-container" style="width: 100%; border-collapse: collapse; margin-top: 18px; margin-bottom: 12px;">
+        <thead>
+          <tr style="background-color: #f1f5f9; text-align: left;">
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #cbd5e1;">Dish / Item</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: center; border-bottom: 2px solid #cbd5e1;">Qty</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Price (LKR)</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Total (LKR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml || '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 14px;">Items detailed in receipt.</td></tr>'}
+        </tbody>
+      </table>
+
+      <!-- Bill Breakdown -->
+      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Subtotal:</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${subtotal}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Service VAT (10%):</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${serviceVat}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">${deliveryFeeLabel}</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">${deliveryFeeText}</td>
+          </tr>
+          <tr style="border-top: 2px solid #064e3b;">
+            <td style="padding: 12px 0 6px 0; font-size: 16px; font-weight: 800; color: #064e3b;">Grand Total:</td>
+            <td style="padding: 12px 0 6px 0; text-align: right; font-size: 17px; font-weight: 800; color: #064e3b;">LKR ${totalAmount}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #f8fafc; border-radius: 8px; padding: 18px; margin-top: 20px; border: 1px solid #e2e8f0;">
+        <h4 style="margin: 0 0 8px 0; color: #0f172a; font-size: 14px;">Next Steps & Instructions:</h4>
+        <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.6;">
+          <li><strong>Estimated Preparation Time:</strong> 20–30 Minutes.</li>
+          <li><strong>Pickup Location:</strong> Raalahami Heritage Pickup Counter, 123 Galle Road, Colombo 03.</li>
+          <li><strong>Order Collection:</strong> Please quote <strong>#${orderId}</strong> at the pickup counter.</li>
+        </ul>
+      </div>
     `;
 
-    nextStepsHtml = `
-      <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.6;">
-        <li><strong>Estimated Preparation Time:</strong> 20–30 Minutes.</li>
-        <li><strong>Pickup Location:</strong> Raalahami Heritage Pickup Counter, 123 Galle Road, Colombo 03.</li>
-        <li><strong>Order Collection:</strong> Please quote <strong>#${orderId}</strong> at the pickup counter.</li>
-      </ul>
-    `;
+    html = renderEmailTemplate({
+      title: subject,
+      preheader: `Your Raalahami Takeaway Order #${orderId} has been confirmed. Total: LKR ${totalAmount}`,
+      contentHtml,
+      footerNote: 'Thank you for dining with Raalahami Royal Restaurant.',
+    });
   } else {
-    // Default DELIVERY
-    orderTypeBoxHtml = `
+    // DELIVERY: Home Delivery Receipt
+    const contentHtml = `
+      <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px;">
+        <h2 style="color: #064e3b; margin: 0 0 6px 0; font-size: 20px;">Raalahami Royal Dining - Delivery Order Receipt</h2>
+        <p style="margin: 0; color: #64748b; font-size: 14px;">Order Reference Number: <strong style="color: #065f46; font-size: 16px;">#${orderId}</strong></p>
+      </div>
+
+      <p style="font-size: 15px; color: #334155; line-height: 1.6;">
+        Ayubowan <b>${recipientName}</b>, thank you for ordering delivery from <b>Raalahami Restaurant</b>.
+      </p>
+
       <div style="background-color: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 18px; margin: 20px 0;">
         <h3 style="color: #115e59; margin: 0 0 12px 0; font-size: 16px; font-weight: 700;">
           🚚 DISPATCH CONFIRMATION - HOME DELIVERY
@@ -468,83 +647,62 @@ const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
           </tr>
         </table>
       </div>
-    `;
 
-    nextStepsHtml = `
-      <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.6;">
-        <li><strong>Estimated Preparation & Delivery:</strong> 30 – 45 minutes.</li>
-        <li><strong>Cash Upon Delivery:</strong> Please have exact cash ready if paying COD.</li>
-        <li><strong>Delivery Verification:</strong> Our courier will phone your contact number (${phone}) upon reaching your delivery destination.</li>
-        <li><strong>Order Reference Number:</strong> Please quote <strong>#${orderId}</strong> for any queries with our concierge.</li>
-      </ul>
-    `;
-  }
-
-  const subject = `Raalahami Royal Dining - Order Confirmation & Bill Receipt #${orderId}`;
-
-  const contentHtml = `
-    <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px;">
-      <h2 style="color: #064e3b; margin: 0 0 6px 0; font-size: 20px;">Raalahami Royal Dining - Order Confirmation & Bill Receipt</h2>
-      <p style="margin: 0; color: #64748b; font-size: 14px;">Order Reference Number: <strong style="color: #065f46; font-size: 16px;">#${orderId}</strong></p>
-    </div>
-
-    <p style="font-size: 15px; color: #334155; line-height: 1.6;">
-      Ayubowan <b>${recipientName}</b>, thank you for authorizing and placing your royal order with <b>Raalahami Restaurant</b>.
-    </p>
-
-    <!-- Conditional Order Type Box -->
-    ${orderTypeBoxHtml}
-
-    <!-- Itemized Bill Table -->
-    <table class="table-container" style="width: 100%; border-collapse: collapse; margin-top: 18px; margin-bottom: 12px;">
-      <thead>
-        <tr style="background-color: #f1f5f9; text-align: left;">
-          <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #cbd5e1;">Dish / Item</th>
-          <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: center; border-bottom: 2px solid #cbd5e1;">Qty</th>
-          <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Price (LKR)</th>
-          <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Total (LKR)</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml || '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 14px;">Items detailed in receipt.</td></tr>'}
-      </tbody>
-    </table>
-
-    <!-- Bill Breakdown -->
-    <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        <tr>
-          <td style="padding: 6px 0; color: #64748b;">Subtotal:</td>
-          <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${subtotal}</td>
-        </tr>
-        <tr>
-          <td style="padding: 6px 0; color: #64748b;">Service VAT (10%):</td>
-          <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${serviceVat}</td>
-        </tr>
-        <tr>
-          <td style="padding: 6px 0; color: #64748b;">${deliveryFeeLabel}</td>
-          <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">${deliveryFeeText}</td>
-        </tr>
-        <tr style="border-top: 2px solid #064e3b;">
-          <td style="padding: 12px 0 6px 0; font-size: 16px; font-weight: 800; color: #064e3b;">Grand Total:</td>
-          <td style="padding: 12px 0 6px 0; text-align: right; font-size: 17px; font-weight: 800; color: #064e3b;">LKR ${totalAmount}</td>
-        </tr>
+      <!-- Itemized Bill Table -->
+      <table class="table-container" style="width: 100%; border-collapse: collapse; margin-top: 18px; margin-bottom: 12px;">
+        <thead>
+          <tr style="background-color: #f1f5f9; text-align: left;">
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #cbd5e1;">Dish / Item</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: center; border-bottom: 2px solid #cbd5e1;">Qty</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Price (LKR)</th>
+            <th style="padding: 12px 10px; font-size: 12px; text-transform: uppercase; color: #475569; text-align: right; border-bottom: 2px solid #cbd5e1;">Total (LKR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml || '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 14px;">Items detailed in receipt.</td></tr>'}
+        </tbody>
       </table>
-    </div>
 
-    <!-- Instructions & Concierge Contact -->
-    <div style="background-color: #f8fafc; border-radius: 8px; padding: 18px; margin-top: 20px; border: 1px solid #e2e8f0;">
-      <h4 style="margin: 0 0 8px 0; color: #0f172a; font-size: 14px;">Next Steps & Instructions:</h4>
-      ${nextStepsHtml}
-    </div>
-  `;
+      <!-- Bill Breakdown -->
+      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Subtotal:</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${subtotal}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">Service VAT (10%):</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">LKR ${serviceVat}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b;">${deliveryFeeLabel}</td>
+            <td style="padding: 6px 0; text-align: right; color: #1e293b; font-weight: 600;">${deliveryFeeText}</td>
+          </tr>
+          <tr style="border-top: 2px solid #064e3b;">
+            <td style="padding: 12px 0 6px 0; font-size: 16px; font-weight: 800; color: #064e3b;">Grand Total:</td>
+            <td style="padding: 12px 0 6px 0; text-align: right; font-size: 17px; font-weight: 800; color: #064e3b;">LKR ${totalAmount}</td>
+          </tr>
+        </table>
+      </div>
 
-  const html = renderEmailTemplate({
-    title: subject,
-    preheader: `Your Raalahami Order #${orderId} has been confirmed. Grand Total: LKR ${totalAmount}`,
-    contentHtml,
-    footerNote: 'Thank you for dining with Raalahami Royal Restaurant. Present your Order Reference Number upon inquiry.',
-  });
+      <div style="background-color: #f8fafc; border-radius: 8px; padding: 18px; margin-top: 20px; border: 1px solid #e2e8f0;">
+        <h4 style="margin: 0 0 8px 0; color: #0f172a; font-size: 14px;">Next Steps & Instructions:</h4>
+        <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.6;">
+          <li><strong>Estimated Preparation & Delivery:</strong> 30 – 45 minutes.</li>
+          <li><strong>Cash Upon Delivery:</strong> Please have exact cash ready if paying COD.</li>
+          <li><strong>Delivery Verification:</strong> Our courier will phone your contact number (${phone}) upon reaching your destination.</li>
+          <li><strong>Order Reference Number:</strong> Please quote <strong>#${orderId}</strong> for any queries.</li>
+        </ul>
+      </div>
+    `;
+
+    html = renderEmailTemplate({
+      title: subject,
+      preheader: `Your Raalahami Order #${orderId} has been confirmed. Grand Total: LKR ${totalAmount}`,
+      contentHtml,
+      footerNote: 'Thank you for dining with Raalahami Royal Restaurant.',
+    });
+  }
 
   const mailOptions = {
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -560,11 +718,8 @@ const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
 
 /**
  * 3. Send 6-Digit Password Reset OTP Email
- * @param {string} toEmail - Dynamic recipient email
- * @param {string} otpCode - 6-digit numeric OTP code
  */
 const sendPasswordResetOtp = async (toEmail, otpCode) => {
-  // Always log the OTP boldly to the server console as a development safety net
   console.log('\n==================================================');
   console.log(`🔑 [OTP DISPATCH] Recipient: ${toEmail} | CODE: >>> ${otpCode} <<<`);
   console.log('==================================================\n');
@@ -598,6 +753,9 @@ const sendPasswordResetOtp = async (toEmail, otpCode) => {
 const emailService = {
   transporter,
   resolvePaymentMethodName,
+  formatDiningDate,
+  formatDiningTime,
+  generateDineInEmailHtml,
   sendWelcomeEmail,
   sendOrderConfirmationEmail,
   sendPasswordResetOtp,

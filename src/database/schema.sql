@@ -36,6 +36,7 @@ DO $$ BEGIN
       'PENDING',
       'CONFIRMED',
       'SEATED',
+      'COMPLETED',
       'CANCELLED'
     );
   END IF;
@@ -114,7 +115,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
     description TEXT,
     price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
     image_url TEXT,
-    image_alt_text TEXT NOT NULL, -- WCAG 2.1 Non-text Content requirement
+    image_alt_text TEXT, -- WCAG 2.1 Non-text Content requirement
+    spice_level VARCHAR(50),
+    dietary_tags TEXT[],
     is_vegan BOOLEAN NOT NULL DEFAULT FALSE,
     is_halal BOOLEAN NOT NULL DEFAULT FALSE,
     is_gluten_free BOOLEAN NOT NULL DEFAULT FALSE,
@@ -160,22 +163,34 @@ CREATE TABLE IF NOT EXISTS menu_item_recipes (
 -- 4.7 DINING TABLES TABLE
 CREATE TABLE IF NOT EXISTS tables (
     id SERIAL PRIMARY KEY,
-    table_number VARCHAR(20) UNIQUE NOT NULL,
-    seating_capacity INT NOT NULL CHECK (seating_capacity > 0),
+    hall_name VARCHAR(100) NOT NULL DEFAULT 'Royal Dining Hall',
+    table_number VARCHAR(50) NOT NULL,
+    capacity INT NOT NULL DEFAULT 4 CHECK (capacity > 0),
+    seating_capacity INT NOT NULL DEFAULT 4 CHECK (seating_capacity > 0),
     location_description VARCHAR(100),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(50) NOT NULL DEFAULT 'AVAILABLE',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_hall_table UNIQUE (hall_name, table_number)
 );
 
 -- 4.8 RESERVATIONS TABLE
 CREATE TABLE IF NOT EXISTS reservations (
     id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    table_id INT NOT NULL REFERENCES tables(id) ON DELETE RESTRICT,
-    party_size INT NOT NULL CHECK (party_size > 0),
-    reservation_time TIMESTAMPTZ NOT NULL,
+    table_id INT REFERENCES tables(id) ON DELETE SET NULL,
+    hall_name VARCHAR(100),
+    table_number VARCHAR(50),
+    party_size INT NOT NULL DEFAULT 1 CHECK (party_size > 0),
+    reservation_date DATE,
+    reservation_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status reservation_status NOT NULL DEFAULT 'PENDING',
     special_requests TEXT,
+    patron_name VARCHAR(150),
+    phone VARCHAR(50),
+    email VARCHAR(150),
+    order_id INT REFERENCES orders(id) ON DELETE SET NULL,
+    booking_source VARCHAR(100) DEFAULT 'Online / App',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

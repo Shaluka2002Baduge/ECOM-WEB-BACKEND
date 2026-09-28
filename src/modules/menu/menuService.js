@@ -32,6 +32,7 @@ const getMenuItems = async (filters = {}) => {
   const { categoryId, isVegan, isHalal, isGlutenFree, isAvailable, search } = filters;
   let queryText = `
     SELECT m.id, m.name, m.description, m.price, m.image_url, m.image_alt_text,
+           m.spice_level, m.dietary_tags,
            m.is_vegan, m.is_halal, m.is_gluten_free, m.is_available,
            c.id AS category_id, c.name AS category_name, c.slug AS category_slug,
            m.created_at, m.updated_at
@@ -71,7 +72,7 @@ const getMenuItems = async (filters = {}) => {
     queryText += ` AND (m.name ILIKE $${params.length} OR m.description ILIKE $${params.length})`;
   }
 
-  queryText += ' ORDER BY m.category_id ASC, m.name ASC';
+  queryText += ' ORDER BY m.id ASC';
 
   const result = await db.query(queryText, params);
   return result.rows;
@@ -109,43 +110,90 @@ const getMenuItemById = async (id) => {
 };
 
 /**
- * Create a new menu item (WCAG image_alt_text is mandatory)
+ * Resolves category_id from numeric ID or category name string
+ * @param {any} rawCategoryId 
+ * @param {string} rawCategoryName 
+ * @returns {Promise<number>}
+ */
+const resolveCategoryId = async (rawCategoryId, rawCategoryName) => {
+  let resolvedCategoryId = rawCategoryId;
+
+  if (resolvedCategoryId === undefined || resolvedCategoryId === null || resolvedCategoryId === '' || isNaN(Number(resolvedCategoryId))) {
+    const categoryName = (rawCategoryName || resolvedCategoryId || '').toString().trim();
+    if (categoryName) {
+      const categoryRes = await db.query(
+        'SELECT id FROM categories WHERE LOWER(name) = LOWER($1) LIMIT 1',
+        [categoryName]
+      );
+      if (categoryRes.rows.length > 0) {
+        return categoryRes.rows[0].id;
+      }
+    }
+    const defaultCat = await db.query('SELECT id FROM categories ORDER BY id ASC LIMIT 1');
+    return defaultCat.rows[0]?.id || 1;
+  }
+  return parseInt(resolvedCategoryId, 10);
+};
+
+/**
+ * Create a new menu item
  */
 const createMenuItem = async (data) => {
   const {
+    category_id,
     categoryId,
+    category,
     name,
     description,
     price,
-    imageUrl,
-    imageAltText,
-    isVegan = false,
-    isHalal = false,
-    isGlutenFree = false,
-    isAvailable = true,
+    spice_level,
+    spiceLevel,
+    is_available,
+    isAvailable,
+    status,
+    dietary_tags,
+    dietaryTags,
+    image_url,
+    image,
   } = data;
 
-  if (!imageAltText || imageAltText.trim() === '') {
-    throw new AppError('image_alt_text is mandatory for WCAG accessibility compliance.', 400);
-  }
+  const resolvedCategoryId = await resolveCategoryId(category_id || categoryId, category);
+
+  const finalSpice = spice_level !== undefined ? Number(spice_level) : (spiceLevel !== undefined ? Number(spiceLevel) : 0);
+  let finalAvailability = true;
+  if (is_available !== undefined) finalAvailability = Boolean(is_available);
+  else if (isAvailable !== undefined) finalAvailability = Boolean(isAvailable);
+  else if (status !== undefined) finalAvailability = status.toLowerCase() === 'available';
+
+  const finalImageUrl = image_url || image || '/images/default-dish.jpg';
+  const finalAltText = data.image_alt_text || data.imageAltText || name || 'Dish image';
+  const tagsArray = Array.isArray(dietary_tags || dietaryTags) 
+    ? (dietary_tags || dietaryTags) 
+    : ((dietary_tags || dietaryTags) ? (dietary_tags || dietaryTags).split(',').map(s => s.trim()).filter(Boolean) : []);
 
   const result = await db.query(
     `INSERT INTO menu_items (
-       category_id, name, description, price, image_url, image_alt_text,
-       is_vegan, is_halal, is_gluten_free, is_available
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING *`,
+       category_id,
+       name,
+       description,
+       price,
+       image_url,
+       image_alt_text,
+       spice_level,
+       dietary_tags,
+       is_available
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *;`,
     [
-      categoryId || null,
+      resolvedCategoryId,
       name,
       description || null,
-      price,
-      imageUrl || null,
-      imageAltText,
-      isVegan,
-      isHalal,
-      isGlutenFree,
-      isAvailable,
+      Number(price),
+      finalImageUrl,
+      finalAltText,
+      finalSpice,
+      tagsArray,
+      finalAvailability,
     ]
   );
 
@@ -156,42 +204,71 @@ const createMenuItem = async (data) => {
  * Update a menu item
  */
 const updateMenuItem = async (id, data) => {
-  const current = await getMenuItemById(id);
+  const {
+    name,
+    category_id,
+    categoryId,
+    category,
+    price,
+    description,
+    spice_level,
+    spiceLevel,
+    is_available,
+    isAvailable,
+    status,
+    dietary_tags,
+    dietaryTags,
+    image_url,
+    image,
+    imagePreview,
+  } = data;
 
-  const updatedFields = {
-    categoryId: data.categoryId !== undefined ? data.categoryId : current.category_id,
-    name: data.name || current.name,
-    description: data.description !== undefined ? data.description : current.description,
-    price: data.price !== undefined ? data.price : current.price,
-    imageUrl: data.imageUrl !== undefined ? data.imageUrl : current.image_url,
-    imageAltText: data.imageAltText || current.image_alt_text,
-    isVegan: data.isVegan !== undefined ? data.isVegan : current.is_vegan,
-    isHalal: data.isHalal !== undefined ? data.isHalal : current.is_halal,
-    isGlutenFree: data.isGlutenFree !== undefined ? data.isGlutenFree : current.is_gluten_free,
-    isAvailable: data.isAvailable !== undefined ? data.isAvailable : current.is_available,
-  };
+  let resolvedCategoryId = null;
+  if (category_id !== undefined || categoryId !== undefined || category !== undefined) {
+    resolvedCategoryId = await resolveCategoryId(category_id !== undefined ? category_id : categoryId, category);
+  }
+
+  const finalSpice = spice_level !== undefined ? Number(spice_level) : (spiceLevel !== undefined ? Number(spiceLevel) : 0);
+  let finalAvailability = true;
+  if (is_available !== undefined) finalAvailability = Boolean(is_available);
+  else if (isAvailable !== undefined) finalAvailability = Boolean(isAvailable);
+  else if (status !== undefined) finalAvailability = status.toLowerCase() === 'available';
+
+  const finalImageUrl = image_url || image || imagePreview || null;
+  const tagsArray = Array.isArray(dietary_tags || dietaryTags) 
+    ? (dietary_tags || dietaryTags) 
+    : ((dietary_tags || dietaryTags) ? (dietary_tags || dietaryTags).split(',').map(s => s.trim()).filter(Boolean) : null);
 
   const result = await db.query(
     `UPDATE menu_items
-     SET category_id = $1, name = $2, description = $3, price = $4,
-         image_url = $5, image_alt_text = $6, is_vegan = $7,
-         is_halal = $8, is_gluten_free = $9, is_available = $10
-     WHERE id = $11
-     RETURNING *`,
+     SET 
+       name = COALESCE($1, name),
+       category_id = COALESCE($2, category_id),
+       price = COALESCE($3, price),
+       description = COALESCE($4, description),
+       spice_level = $5,
+       is_available = $6,
+       dietary_tags = COALESCE($7, dietary_tags),
+       image_url = COALESCE($8, image_url),
+       updated_at = NOW()
+     WHERE id = $9
+     RETURNING *;`,
     [
-      updatedFields.categoryId,
-      updatedFields.name,
-      updatedFields.description,
-      updatedFields.price,
-      updatedFields.imageUrl,
-      updatedFields.imageAltText,
-      updatedFields.isVegan,
-      updatedFields.isHalal,
-      updatedFields.isGlutenFree,
-      updatedFields.isAvailable,
+      name !== undefined ? name : null,
+      resolvedCategoryId,
+      price !== undefined ? Number(price) : null,
+      description !== undefined ? description : null,
+      finalSpice,
+      finalAvailability,
+      tagsArray,
+      finalImageUrl,
       id,
     ]
   );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Menu item not found.', 404);
+  }
 
   return result.rows[0];
 };
