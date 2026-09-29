@@ -25,12 +25,26 @@ const app = express();
 // 1. GLOBAL INFRASTRUCTURE MIDDLEWARE & AOP ASPECTS
 // ====================================================================
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
+  origin: (origin, callback) => {
+    // Allow non-browser requests or any localhost / 127.0.0.1 origin (Vite, CRA, Next.js)
+    if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
+    'X-Requested-With',
+    'Accept'
+  ],
+  credentials: true,
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle OPTIONS preflight
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

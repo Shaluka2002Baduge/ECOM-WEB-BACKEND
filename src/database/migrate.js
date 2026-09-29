@@ -27,7 +27,7 @@ const ensureDefaultCredentials = async () => {
       displayName: 'Kitchen Head Chef',
       email: 'kitchen@ralahami.lk',
       password: 'Password123!',
-      role: 'KITCHEN_STAFF',
+      role: 'MANAGER',
       phone: '+94773456789',
     },
     {
@@ -111,6 +111,10 @@ const runAutoMigration = async (options = {}) => {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp_expires_at TIMESTAMPTZ;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number VARCHAR(100);
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(150);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
+        ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR(50);
         ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_level VARCHAR(50);
         ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS dietary_tags TEXT[];
         ALTER TABLE menu_items ALTER COLUMN image_alt_text DROP NOT NULL;
@@ -129,6 +133,7 @@ const runAutoMigration = async (options = {}) => {
         ALTER TABLE reservations ADD COLUMN IF NOT EXISTS order_id INT REFERENCES orders(id) ON DELETE SET NULL;
         ALTER TABLE reservations ADD COLUMN IF NOT EXISTS booking_source VARCHAR(100) DEFAULT 'Online / App';
         ALTER TABLE reservations ALTER COLUMN table_id DROP NOT NULL;
+        ALTER TABLE reservations ALTER COLUMN status TYPE VARCHAR(50);
       `);
     } catch (colErr) {
       console.warn(`[AutoMigration]: Optional column check notice: ${colErr.message}`);

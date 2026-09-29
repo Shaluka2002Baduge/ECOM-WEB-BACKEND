@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const ordersService = require('../orders/orderService');
 
 /**
  * Administrative Overview / Dashboard Metrics
@@ -106,8 +107,69 @@ const getSystemHealth = async (req, res, next) => {
   }
 };
 
+/**
+ * Retrieve all orders for Admin Management
+ * Uses LEFT JOIN on tables/reservations so Home Delivery and Takeaway are never omitted
+ * GET /api/admin/orders
+ * Restricted strictly to ADMIN and MANAGER
+ */
+const getAdminOrders = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const orders = await ordersService.getAdminOrders(status);
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin orders retrieved successfully.',
+      count: orders.length,
+      data: orders,
+      orders: orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Unified Admin Order Status API
+ * PATCH /api/admin/orders/:id/status
+ * Restricted strictly to ADMIN and MANAGER
+ */
+const updateAdminOrderStatus = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+    let { status } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'Order ID is required', message: 'Order ID is required' });
+    }
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status is required', message: 'Status is required' });
+    }
+
+    const updated = await ordersService.updateOrderStatusByAdmin(orderId, status);
+    return res.status(200).json({
+      success: true,
+      message: `Order status successfully transitioned to ${status}.`,
+      data: updated,
+      order: updated,
+    });
+  } catch (error) {
+    if (error.statusCode === 404 || error.message === 'Order not found.' || error.message === 'Order not found') {
+      return res.status(404).json({ success: false, error: 'Order not found', message: 'Order not found' });
+    }
+    if (error.statusCode === 400) {
+      return res.status(400).json({ success: false, error: error.message, message: error.message });
+    }
+    console.error('[STATUS UPDATE ERROR]', error);
+    return res.status(500).json({ success: false, error: 'Failed to update order status', message: 'Failed to update order status' });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getAdminUsers,
+  getAdminOrders,
   getSystemHealth,
+  updateAdminOrderStatus,
 };

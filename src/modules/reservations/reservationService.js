@@ -240,9 +240,25 @@ const updateTableStatus = async (tableId, status) => {
 
 /**
  * Check collision/conflict for a specific hall and table in a 90-minute window
+ * Strictly ignores CANCELLED and COMPLETED bookings (only blocks if status IN ('CONFIRMED', 'SEATED'))
  */
-const checkTableConflict = async ({ hallName, tableNumber, tableId, reservationTime }) => {
-  const targetTime = new Date(reservationTime);
+const checkTableConflict = async ({ hallName, tableNumber, tableId, reservationTime, reservationDate }) => {
+  let targetTime;
+  if (!reservationTime) {
+    targetTime = new Date();
+  } else if (reservationTime instanceof Date) {
+    targetTime = reservationTime;
+  } else {
+    const timeStr = String(reservationTime).trim();
+    if (timeStr.includes('T')) {
+      targetTime = new Date(timeStr);
+    } else {
+      const datePart = reservationDate || new Date().toISOString().split('T')[0];
+      const formattedTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+      targetTime = new Date(`${datePart}T${formattedTime}`);
+    }
+  }
+
   if (isNaN(targetTime.getTime())) {
     return { hasConflict: true, message: 'Invalid reservation date and time.' };
   }
@@ -262,15 +278,8 @@ const checkTableConflict = async ({ hallName, tableNumber, tableId, reservationT
     dbTable = res.rows[0];
   }
 
-  if (dbTable && dbTable.status === 'OCCUPIED') {
-    return {
-      hasConflict: true,
-      message: 'This table is already booked for this time slot. Please choose another table or time.',
-    };
-  }
-
   const conflictRes = await db.query(
-    `SELECT r.id FROM reservations r
+    `SELECT r.id, r.status FROM reservations r
      LEFT JOIN tables t ON r.table_id = t.id
      WHERE (
        (r.table_id = $1 AND $1 IS NOT NULL)
@@ -279,7 +288,8 @@ const checkTableConflict = async ({ hallName, tableNumber, tableId, reservationT
      )
      AND r.status IN ('CONFIRMED', 'SEATED')
      AND r.reservation_time >= $4
-     AND r.reservation_time <= $5`,
+     AND r.reservation_time <= $5
+     LIMIT 1`,
     [
       dbTable ? dbTable.id : null,
       hallName || (dbTable ? dbTable.hall_name : ''),

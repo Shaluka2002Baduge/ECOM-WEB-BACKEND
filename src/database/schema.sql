@@ -208,9 +208,12 @@ CREATE TABLE IF NOT EXISTS orders (
     order_number VARCHAR(100),
     recipient_name VARCHAR(150),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    status order_status NOT NULL DEFAULT 'PLACED',
+    status VARCHAR(50) NOT NULL DEFAULT 'PLACED',
     total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
     order_type VARCHAR(50) NOT NULL DEFAULT 'DINE_IN' CHECK (order_type IN ('DINE_IN', 'TAKEAWAY', 'DELIVERY')),
+    delivery_address TEXT,
+    customer_email VARCHAR(255),
+    customer_phone VARCHAR(50),
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

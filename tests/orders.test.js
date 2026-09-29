@@ -13,6 +13,11 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
     secret
   );
 
+  const mockAdminToken = jwt.sign(
+    { id: '33333333-3333-3333-3333-333333333333', email: 'admin@ralahami.lk', role: 'ADMIN' },
+    secret
+  );
+
   const mockStaffToken = jwt.sign(
     { id: '22222222-2222-2222-2222-222222222222', email: 'staff@ralahami.com', role: 'KITCHEN_STAFF' },
     secret
@@ -343,6 +348,52 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
       expect(response.body.success).toBe(false);
       expect(response.body.message).toMatch(/Order not found/i);
     });
+
+    test('GET /api/orders/track/:identifier exposes tracking details with formatted fulfillment_type', async () => {
+      const mockUpdatedAt = new Date().toISOString();
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 777,
+              order_number: 'RAALAHAMI-777888',
+              user_id: null,
+              status: 'PREPARING',
+              total_amount: '3500.00',
+              order_type: 'DINE_IN',
+              recipient_name: 'Noble Guest',
+              updated_at: mockUpdatedAt,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              menu_item_id: 5,
+              name: 'Jaffna Crab Curry',
+              quantity: 1,
+              unit_price: '3500.00',
+              special_instructions: 'Medium spicy',
+              line_total: '3500.00',
+            },
+          ],
+        });
+
+      const response = await request(app).get('/api/orders/track/RAALAHAMI-777888');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toMatchObject({
+        id: 777,
+        order_number: 'RAALAHAMI-777888',
+        fulfillment_type: 'Dine-In',
+        status: 'PREPARING',
+        total_amount: '3500.00',
+        updated_at: mockUpdatedAt,
+      });
+      expect(response.body.data.items).toHaveLength(1);
+    });
   });
 
   describe('Dine-In Order & Table Status Integration', () => {
@@ -437,6 +488,490 @@ describe('Order State Machine & ACID Transaction Integrity', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.status).toBe('OCCUPIED');
+    });
+  });
+
+  describe('Unified Admin Order Status API: PATCH /api/admin/orders/:id/status', () => {
+    test('Denies access to non-admin users with 403 Forbidden', async () => {
+      const response = await request(app)
+        .patch('/api/admin/orders/1/status')
+        .set('Authorization', `Bearer ${mockCustomerToken}`)
+        .send({ status: 'COOKING' });
+
+      expect(response.status).toBe(403);
+    });
+
+    test('Allows Admin to update Delivery order to KITCHEN_CONFIRMED, COOKING, OUT_FOR_DELIVERY, DELIVERED', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 50, order_number: 'RAALAHAMI-50', order_type: 'DELIVERY', status: 'PENDING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 50, order_number: 'RAALAHAMI-50', order_type: 'DELIVERY', status: 'COOKING' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/50/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'COOKING' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('COOKING');
+      expect(response.body.data.fulfillment_type).toBe('Home Delivery');
+    });
+
+    test('Allows Admin to update Delivery order with natural text "Out for delivery"', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 51, order_number: 'RAALAHAMI-51', order_type: 'DELIVERY', status: 'COOKING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 51, order_number: 'RAALAHAMI-51', order_type: 'DELIVERY', status: 'OUT_FOR_DELIVERY' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/51/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'Out for delivery' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('OUT_FOR_DELIVERY');
+      expect(response.body.data.fulfillment_type).toBe('Home Delivery');
+    });
+
+    test('Allows Admin to update Takeaway order to READY_FOR_PICKUP and COMPLETED', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 60, order_number: 'RAALAHAMI-60', order_type: 'TAKEAWAY', status: 'PREPARING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 60, order_number: 'RAALAHAMI-60', order_type: 'TAKEAWAY', status: 'READY_FOR_PICKUP' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/60/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'READY_FOR_PICKUP' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('READY_FOR_PICKUP');
+      expect(response.body.data.fulfillment_type).toBe('Takeaway');
+    });
+
+    test('Allows Admin to update Dine-In order to PREPARING', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 70, order_number: 'RAALAHAMI-70', order_type: 'DINE_IN', status: 'CONFIRMED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 70, order_number: 'RAALAHAMI-70', order_type: 'DINE_IN', status: 'PREPARING' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/70/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'PREPARING' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('PREPARING');
+      expect(response.body.data.fulfillment_type).toBe('Dine-In');
+    });
+
+    test('Allows Admin to update Dine-In order to SERVED and marks COMPLETED', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 71, order_number: 'RAALAHAMI-71', order_type: 'DINE_IN', status: 'PREPARING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 71, order_number: 'RAALAHAMI-71', order_type: 'DINE_IN', status: 'COMPLETED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 10, table_id: 2, hall_name: 'Main', table_number: 'T-2' }] }) // update reservations
+        .mockResolvedValueOnce({ rows: [] }); // update tables
+
+      const response = await request(app)
+        .patch('/api/admin/orders/71/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'SERVED' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('COMPLETED');
+      expect(response.body.data.fulfillment_type).toBe('Dine-In');
+    });
+
+    test('Allows Admin to update Dine-In order to SEATED and COMPLETED', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 70, order_number: 'RAALAHAMI-70', order_type: 'DINE_IN', status: 'CONFIRMED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 70, order_number: 'RAALAHAMI-70', order_type: 'DINE_IN', status: 'SEATED' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/70/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'SEATED' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('SEATED');
+      expect(response.body.data.fulfillment_type).toBe('Dine-In');
+    });
+
+    test('Permissively coerces mismatched status for fulfillment type (Takeaway OUT_FOR_DELIVERY -> READY_FOR_PICKUP)', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 80, order_number: 'RAALAHAMI-80', order_type: 'TAKEAWAY', status: 'PREPARING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 80, order_number: 'RAALAHAMI-80', order_type: 'TAKEAWAY', status: 'READY_FOR_PICKUP' }] });
+
+      const response = await request(app)
+        .patch('/api/admin/orders/80/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'OUT_FOR_DELIVERY' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('READY_FOR_PICKUP');
+      expect(response.body.data.fulfillment_type).toBe('Takeaway');
+    });
+
+    test('Permissively coerces Takeaway COOKING -> PREPARING and DELIVERED -> COMPLETED', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 81, order_number: 'RAALAHAMI-81', order_type: 'TAKEAWAY', status: 'PENDING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 81, order_number: 'RAALAHAMI-81', order_type: 'TAKEAWAY', status: 'PREPARING' }] });
+
+      const res1 = await request(app)
+        .patch('/api/admin/orders/81/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'COOKING' });
+
+      expect(res1.status).toBe(200);
+      expect(res1.body.data.status).toBe('PREPARING');
+
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 81, order_number: 'RAALAHAMI-81', order_type: 'TAKEAWAY', status: 'READY_FOR_PICKUP' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 81, order_number: 'RAALAHAMI-81', order_type: 'TAKEAWAY', status: 'COMPLETED' }] });
+
+      const res2 = await request(app)
+        .patch('/api/admin/orders/81/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'DELIVERED' });
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.status).toBe('COMPLETED');
+    });
+
+    test('Permissively coerces Home Delivery PREPARING -> COOKING and Dine-In COOKING -> PREPARING', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 82, order_number: 'RAALAHAMI-82', order_type: 'DELIVERY', status: 'PENDING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 82, order_number: 'RAALAHAMI-82', order_type: 'DELIVERY', status: 'COOKING' }] });
+
+      const res1 = await request(app)
+        .patch('/api/admin/orders/82/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'PREPARING' });
+
+      expect(res1.status).toBe(200);
+      expect(res1.body.data.status).toBe('COOKING');
+
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 83, order_number: 'RAALAHAMI-83', order_type: 'DINE_IN', status: 'CONFIRMED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 83, order_number: 'RAALAHAMI-83', order_type: 'DINE_IN', status: 'PREPARING' }] });
+
+      const res2 = await request(app)
+        .patch('/api/admin/orders/83/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'COOKING' });
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.status).toBe('PREPARING');
+    });
+
+    test('GET /api/admin/orders returns all orders including Home Delivery and Takeaway', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 901,
+              order_number: 'RAALAHAMI-901',
+              customer_name: 'Anoma Delivery Guest',
+              phone: '+94771112233',
+              email: 'anoma@example.lk',
+              delivery_address: '45 Galle Road, Colombo',
+              status: 'PENDING',
+              total_amount: '4500.00',
+              order_type: 'DELIVERY',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              hall_name: null,
+              table_number: null,
+            },
+            {
+              id: 902,
+              order_number: 'RAALAHAMI-902',
+              customer_name: 'Sunil Takeaway Guest',
+              phone: '+94772223344',
+              email: 'sunil@example.lk',
+              delivery_address: '',
+              status: 'READY_FOR_PICKUP',
+              total_amount: '2200.00',
+              order_type: 'TAKEAWAY',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              hall_name: null,
+              table_number: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              order_id: 901,
+              menu_item_id: 1,
+              name: 'Fish Cutlets',
+              quantity: 2,
+              unit_price: '650.00',
+              line_total: '1300.00',
+            },
+          ],
+        });
+
+      const response = await request(app)
+        .get('/api/admin/orders')
+        .set('Authorization', `Bearer ${mockAdminToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data[0].fulfillment_type).toBe('Home Delivery');
+      expect(response.body.data[0].delivery_address).toBe('45 Galle Road, Colombo');
+      expect(response.body.data[1].fulfillment_type).toBe('Takeaway');
+    });
+
+    test('POST /api/orders prevents duplicate submissions within 4 seconds', async () => {
+      jest.spyOn(db, 'query').mockResolvedValueOnce({
+        rows: [
+          {
+            id: 999,
+            order_number: 'RAALAHAMI-999',
+            total_amount: '1200.00',
+            order_type: 'DELIVERY',
+            status: 'PENDING',
+            recipient_name: 'Repeat Patron',
+            customer_name: 'Repeat Patron',
+          },
+        ],
+      });
+
+      const response = await request(app)
+        .post('/api/orders')
+        .send({
+          email: 'repeat@example.com',
+          totalAmount: 1200.00,
+          fulfillment_type: 'Home Delivery',
+          items: [{ id: 1, quantity: 1 }],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toMatch(/already received/i);
+      expect(response.body.data.id).toBe(999);
+    });
+
+    test('GET /api/orders/history/:email returns all orders matching patron email with line items', async () => {
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 501,
+              order_number: 'RAALAHAMI-501',
+              customer_name: 'Shaluka Feast Guest',
+              recipient_name: 'Shaluka Feast Guest',
+              email: 'shaluka@example.com',
+              customer_email: 'shaluka@example.com',
+              phone: '+94771234567',
+              customer_phone: '+94771234567',
+              fulfillment_type: 'Home Delivery',
+              fulfillmentType: 'Home Delivery',
+              order_type: 'DELIVERY',
+              status: 'COOKING',
+              total_amount: '3500.00',
+              delivery_address: '12 Temple Road, Colombo',
+              table_number: null,
+              hall_name: null,
+              notes: 'Extra spice please',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              id: 502,
+              order_number: 'RAALAHAMI-502',
+              customer_name: 'Shaluka Feast Guest',
+              recipient_name: 'Shaluka Feast Guest',
+              email: 'shaluka@example.com',
+              customer_email: 'shaluka@example.com',
+              phone: '+94771234567',
+              customer_phone: '+94771234567',
+              fulfillment_type: 'Dine-In',
+              fulfillmentType: 'Dine-In',
+              order_type: 'DINE_IN',
+              status: 'COMPLETED',
+              total_amount: '5200.00',
+              delivery_address: null,
+              table_number: 'Table 5',
+              hall_name: 'Royal Dining Hall',
+              notes: 'Anniversary celebration',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              order_id: 501,
+              menu_item_id: 2,
+              name: 'Jaffna Crab Curry',
+              quantity: 1,
+              unit_price: '3500.00',
+              line_total: '3500.00',
+              image_url: '/assets/crab.jpg',
+            },
+            {
+              id: 2,
+              order_id: 502,
+              menu_item_id: 4,
+              name: 'Lamprais Special',
+              quantity: 2,
+              unit_price: '2600.00',
+              line_total: '5200.00',
+              image_url: '/assets/lamprais.jpg',
+            },
+          ],
+        });
+
+      const response = await request(app)
+        .get('/api/orders/history/shaluka@example.com');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.total).toBe(2);
+      expect(response.body.orders).toHaveLength(2);
+      expect(response.body.orders[0].id).toBe(501);
+      expect(response.body.orders[0].items).toHaveLength(1);
+      expect(response.body.orders[0].items[0].name).toBe('Jaffna Crab Curry');
+      expect(response.body.orders[1].id).toBe(502);
+      expect(response.body.orders[1].fulfillment_type).toBe('Dine-In');
+      expect(response.body.orders[1].table_number).toBe('Table 5');
+    });
+
+    test('GET /api/orders/history/:email returns 400 for invalid email parameter', async () => {
+      const response = await request(app)
+        .get('/api/orders/history/not-an-email');
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toMatch(/valid email is required/i);
+    });
+  });
+
+  describe('End-to-End Multi-Pipeline Lifecycle Verification', () => {
+    test('Pipeline A: HOME DELIVERY (5 Stages: PENDING -> KITCHEN_CONFIRMED -> COOKING -> OUT_FOR_DELIVERY -> DELIVERED)', async () => {
+      // 1. Stage 1: PENDING
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'PENDING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'KITCHEN_CONFIRMED' }] });
+
+      const res1 = await request(app)
+        .patch('/api/admin/orders/1001/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'KITCHEN_CONFIRMED' });
+      expect(res1.status).toBe(200);
+      expect(res1.body.data.status).toBe('KITCHEN_CONFIRMED');
+
+      // 2. Stage 2 -> 3: COOKING
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'KITCHEN_CONFIRMED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'COOKING' }] });
+
+      const res2 = await request(app)
+        .patch('/api/admin/orders/1001/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'COOKING' });
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.status).toBe('COOKING');
+
+      // 3. Stage 3 -> 4: OUT_FOR_DELIVERY
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'COOKING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'OUT_FOR_DELIVERY' }] });
+
+      const res3 = await request(app)
+        .patch('/api/admin/orders/1001/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'OUT_FOR_DELIVERY' });
+      expect(res3.status).toBe(200);
+      expect(res3.body.data.status).toBe('OUT_FOR_DELIVERY');
+
+      // 4. Stage 4 -> 5: DELIVERED
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'OUT_FOR_DELIVERY' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1001, order_number: 'RAALAHAMI-1001', order_type: 'DELIVERY', status: 'DELIVERED' }] });
+
+      const res4 = await request(app)
+        .patch('/api/admin/orders/1001/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'DELIVERED' });
+      expect(res4.status).toBe(200);
+      expect(res4.body.data.status).toBe('DELIVERED');
+    });
+
+    test('Pipeline B: TAKEAWAY (3 Stages: PENDING -> PREPARING -> READY_FOR_PICKUP -> COMPLETED)', async () => {
+      // 1. Stage 1 -> 2: PREPARING
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'PENDING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'PREPARING' }] });
+
+      const res1 = await request(app)
+        .patch('/api/admin/orders/1002/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'PREPARING' });
+      expect(res1.status).toBe(200);
+      expect(res1.body.data.status).toBe('PREPARING');
+
+      // 2. Stage 2 -> 3: READY_FOR_PICKUP
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'PREPARING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'READY_FOR_PICKUP' }] });
+
+      const res2 = await request(app)
+        .patch('/api/admin/orders/1002/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'READY_FOR_PICKUP' });
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.status).toBe('READY_FOR_PICKUP');
+
+      // 3. Stage 3 -> COMPLETED
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'READY_FOR_PICKUP' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1002, order_number: 'RAALAHAMI-1002', order_type: 'TAKEAWAY', status: 'COMPLETED' }] });
+
+      const res3 = await request(app)
+        .patch('/api/admin/orders/1002/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'COMPLETED' });
+      expect(res3.status).toBe(200);
+      expect(res3.body.data.status).toBe('COMPLETED');
+    });
+
+    test('Pipeline C: DINE-IN (3 Stages: CONFIRMED -> PREPARING -> SERVED/COMPLETED)', async () => {
+      // 1. Stage 1 -> 2: PREPARING
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1003, order_number: 'RAALAHAMI-1003', order_type: 'DINE_IN', status: 'CONFIRMED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1003, order_number: 'RAALAHAMI-1003', order_type: 'DINE_IN', status: 'PREPARING' }] });
+
+      const res1 = await request(app)
+        .patch('/api/admin/orders/1003/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'PREPARING' });
+      expect(res1.status).toBe(200);
+      expect(res1.body.data.status).toBe('PREPARING');
+
+      // 2. Stage 2 -> 3: SERVED -> Coerces and saves as COMPLETED
+      jest.spyOn(db, 'query')
+        .mockResolvedValueOnce({ rows: [{ id: 1003, order_number: 'RAALAHAMI-1003', order_type: 'DINE_IN', status: 'PREPARING' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1003, order_number: 'RAALAHAMI-1003', order_type: 'DINE_IN', status: 'COMPLETED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 9, table_id: 1, hall_name: 'Royal Dining Hall', table_number: 'Table 1' }] })
+        .mockResolvedValueOnce({ rows: [] }); // table update
+
+      const res2 = await request(app)
+        .patch('/api/admin/orders/1003/status')
+        .set('Authorization', `Bearer ${mockAdminToken}`)
+        .send({ status: 'SERVED' });
+      expect(res2.status).toBe(200);
+      expect(res2.body.data.status).toBe('COMPLETED');
     });
   });
 });
