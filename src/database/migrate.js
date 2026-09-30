@@ -134,6 +134,9 @@ const runAutoMigration = async (options = {}) => {
         ALTER TABLE reservations ADD COLUMN IF NOT EXISTS booking_source VARCHAR(100) DEFAULT 'Online / App';
         ALTER TABLE reservations ALTER COLUMN table_id DROP NOT NULL;
         ALTER TABLE reservations ALTER COLUMN status TYPE VARCHAR(50);
+
+        ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'Grains';
+        ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS supplier VARCHAR(150) DEFAULT 'Local Supplier';
       `);
     } catch (colErr) {
       console.warn(`[AutoMigration]: Optional column check notice: ${colErr.message}`);

@@ -1,5 +1,6 @@
 const db = require('../../config/db');
 const { AppError } = require('../../middleware/errorAspect');
+const inventoryService = require('../inventory/inventoryService');
 
 /**
  * State Machine Transition Matrix
@@ -124,6 +125,13 @@ const createOrder = async (userId, { items, orderType = 'DINE_IN', notes = null,
          VALUES ($1, $2, $3, $4, $5)`,
         [createdOrder.id, line.menuItemId, line.quantity, line.unitPrice, line.specialInstructions]
       );
+    }
+
+    // 4. Auto-deduct inventory stock for recipes, produce, water bottles, and beverages
+    try {
+      await inventoryService.deductInventoryStock(validatedItems, client);
+    } catch (deductErr) {
+      console.warn('⚠️ [Auto-Stock Deduction Notice]:', deductErr.message);
     }
 
     await client.query('COMMIT');

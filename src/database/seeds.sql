@@ -61,19 +61,28 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price;
 
 -- 5. INVENTORY ITEMS SEED
-INSERT INTO inventory_items (id, name, unit, current_stock, minimum_threshold)
+INSERT INTO inventory_items (id, name, category, supplier, unit, current_stock, minimum_threshold)
 VALUES
-  (1, 'Boneless Chicken Breast', 'kg', 45.00, 10.00),
-  (2, 'Lagoon Mud Crab', 'kg', 20.00, 5.00),
-  (3, 'Canned Mackerel Fish', 'kg', 15.00, 3.00),
-  (4, 'Godamba Roti Sheets', 'pieces', 120.00, 30.00),
-  (5, 'Thick Coconut Milk', 'liters', 50.00, 12.00),
-  (6, 'Ceylon Roasted Curry Powder', 'kg', 8.50, 2.00),
-  (7, 'Kitul Palm Jaggery', 'kg', 12.00, 3.00),
-  (8, 'Red Split Lentils', 'kg', 35.00, 8.00),
-  (9, 'King Coconut', 'units', 60.00, 15.00),
-  (10, 'Cheddar Cheese Block', 'kg', 14.00, 4.00)
-ON CONFLICT (id) DO UPDATE SET current_stock = EXCLUDED.current_stock;
+  (1, 'Boneless Chicken Breast', 'Meat & Poultry', 'Central Highlands Farm', 'kg', 45.00, 10.00),
+  (2, 'Lagoon Mud Crab', 'Seafood', 'Negombo Coastal Co-op', 'kg', 20.00, 5.00),
+  (3, 'Canned Mackerel Fish', 'Seafood', 'Mirissa Fisheries', 'kg', 15.00, 3.00),
+  (4, 'Godamba Roti Sheets', 'Grains & Rice', 'Colombo Artisan Bakers', 'pieces', 120.00, 30.00),
+  (5, 'Thick Coconut Milk', 'Coconuts & Produce', 'Kurunegala Coconut Triangle', 'liters', 50.00, 12.00),
+  (6, 'Ceylon Roasted Curry Powder', 'Spices & Seasoning', 'Jaffna Heritage Spices', 'kg', 8.50, 2.00),
+  (7, 'Kitul Palm Jaggery', 'Sweeteners & Treacle', 'Sinharaja Rainforest Guild', 'kg', 12.00, 3.00),
+  (8, 'Red Split Lentils', 'Grains & Rice', 'Polonnaruwa Mills', 'kg', 35.00, 8.00),
+  (9, 'Fresh King Coconuts', 'Coconuts & Produce', 'Gampaha Organic Groves', 'units', 60.00, 15.00),
+  (10, 'Natural Spring Water Bottles (750ml)', 'Beverages & Water Bottles', 'Knuckles Mountain Springs', 'bottles', 150.00, 30.00),
+  (11, 'Charred Banana Leaves Packaging', 'Packaging & Containers', 'Gampaha Eco Crafters', 'leaves', 350.00, 100.00),
+  (12, 'Artisan Craft Ginger Beer (330ml)', 'Beverages & Water Bottles', 'Ceylon Craft Brews', 'bottles', 85.00, 20.00),
+  (13, 'Cheddar Cheese Block', 'Dairy & Oils', 'Nuwara Eliya Dairies', 'kg', 14.00, 4.00)
+ON CONFLICT (id) DO UPDATE SET 
+  name = EXCLUDED.name,
+  category = EXCLUDED.category,
+  supplier = EXCLUDED.supplier,
+  unit = EXCLUDED.unit,
+  current_stock = EXCLUDED.current_stock,
+  minimum_threshold = EXCLUDED.minimum_threshold;
 
 -- 6. MENU ITEM RECIPES SEED (Bill of Materials)
 INSERT INTO menu_item_recipes (menu_item_id, inventory_item_id, quantity_required)

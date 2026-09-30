@@ -137,7 +137,9 @@ EXECUTE FUNCTION update_timestamp_column();
 CREATE TABLE IF NOT EXISTS inventory_items (
     id SERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
-    unit VARCHAR(50) NOT NULL, -- e.g., 'kg', 'g', 'liters', 'units'
+    category VARCHAR(100) NOT NULL DEFAULT 'Grains',
+    supplier VARCHAR(150) NOT NULL DEFAULT 'Local Supplier',
+    unit VARCHAR(50) NOT NULL, -- e.g., 'kg', 'g', 'liters', 'units', 'leaves', 'bottles'
     current_stock NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (current_stock >= 0),
     minimum_threshold NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (minimum_threshold >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

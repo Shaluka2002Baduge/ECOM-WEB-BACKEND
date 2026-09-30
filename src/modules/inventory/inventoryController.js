@@ -17,16 +17,18 @@ const getInventory = async (req, res, next) => {
 
 const addInventoryItem = async (req, res, next) => {
   try {
-    const { name, unit, currentStock, minimumThreshold } = req.body;
-    if (!name || !unit) {
-      throw new AppError('name and unit are required fields.', 400);
+    const { name, category, supplier, unit, currentStock, stock, minimumThreshold, threshold } = req.body;
+    if (!name) {
+      throw new AppError('Item name is required.', 400);
     }
 
     const item = await inventoryService.addInventoryItem({
       name,
-      unit,
-      currentStock: currentStock ? parseFloat(currentStock) : 0,
-      minimumThreshold: minimumThreshold ? parseFloat(minimumThreshold) : 0,
+      category: category || 'General',
+      supplier: supplier || 'Local Supplier',
+      unit: unit || 'kg',
+      currentStock: currentStock !== undefined ? parseFloat(currentStock) : (stock !== undefined ? parseFloat(stock) : 0),
+      minimumThreshold: minimumThreshold !== undefined ? parseFloat(minimumThreshold) : (threshold !== undefined ? parseFloat(threshold) : 0),
     });
 
     res.status(201).json({
@@ -46,16 +48,54 @@ const updateStock = async (req, res, next) => {
       throw new AppError('Invalid inventory item ID.', 400);
     }
 
-    const { stockDelta, absoluteStock } = req.body;
+    const { stockDelta, delta, absoluteStock, stock, currentStock } = req.body;
     const updated = await inventoryService.updateStockLevel(id, {
-      stockDelta: stockDelta !== undefined ? parseFloat(stockDelta) : undefined,
-      absoluteStock: absoluteStock !== undefined ? parseFloat(absoluteStock) : undefined,
+      stockDelta: stockDelta !== undefined ? parseFloat(stockDelta) : (delta !== undefined ? parseFloat(delta) : undefined),
+      absoluteStock: absoluteStock !== undefined ? parseFloat(absoluteStock) : (stock !== undefined ? parseFloat(stock) : (currentStock !== undefined ? parseFloat(currentStock) : undefined)),
     });
 
     res.status(200).json({
       success: true,
       message: 'Stock level updated successfully.',
       data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateInventoryItem = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      throw new AppError('Invalid inventory item ID.', 400);
+    }
+
+    const updated = await inventoryService.updateInventoryItem(id, req.body);
+
+    res.status(200).json({
+      success: true,
+      message: 'Inventory item updated successfully.',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteInventoryItem = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      throw new AppError('Invalid inventory item ID.', 400);
+    }
+
+    const deleted = await inventoryService.deleteInventoryItem(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Inventory item removed successfully.',
+      data: deleted,
     });
   } catch (error) {
     next(error);
@@ -85,9 +125,31 @@ const mapRecipe = async (req, res, next) => {
   }
 };
 
+const deductStock = async (req, res, next) => {
+  try {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items)) {
+      throw new AppError('items array is required for stock deduction.', 400);
+    }
+
+    const result = await inventoryService.deductInventoryStock(items);
+
+    res.status(200).json({
+      success: true,
+      message: 'Inventory stock auto-deducted successfully.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getInventory,
   addInventoryItem,
   updateStock,
+  updateInventoryItem,
+  deleteInventoryItem,
+  deductStock,
   mapRecipe,
 };
