@@ -31,6 +31,14 @@ const ensureDefaultCredentials = async () => {
       phone: '+94773456789',
     },
     {
+      id: '11111111-2222-3333-4444-555555555500',
+      displayName: 'User Customer',
+      email: 'user@ralahami.lk',
+      password: 'Password123!',
+      role: 'CUSTOMER',
+      phone: '+94775678901',
+    },
+    {
       id: '11111111-2222-3333-4444-555555555503',
       displayName: 'Patron Customer',
       email: 'patron@ralahami.lk',

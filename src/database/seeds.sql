@@ -12,6 +12,7 @@ VALUES
   -- Required Explicit Test Accounts (.lk)
   ('11111111-2222-3333-4444-555555555501', 'System Administrator', 'admin@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94771234567', 'ADMIN'),
   ('11111111-2222-3333-4444-555555555502', 'Kitchen Head Chef', 'kitchen@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94773456789', 'MANAGER'),
+  ('11111111-2222-3333-4444-555555555500', 'User Customer', 'user@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94775678901', 'CUSTOMER'),
   ('11111111-2222-3333-4444-555555555503', 'Patron Customer', 'patron@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94775678901', 'CUSTOMER'),
   ('11111111-2222-3333-4444-555555555504', 'Operations Manager', 'manager@ralahami.lk', '$2b$10$mA16rDLN3/hJCd5Mr9rMxOyjI5bWWOaIQyc3uimfQHkiEc9L4wdw2', '+94772345678', 'MANAGER'),
 

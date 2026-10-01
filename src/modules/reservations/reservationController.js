@@ -71,7 +71,14 @@ const createReservation = async (req, res, next) => {
       partySize,
       reservationTime,
       specialRequests,
+      userName,
+      user_name,
+      customerName,
+      customer_name,
       patronName,
+      patron_name,
+      guest,
+      name,
       phone,
       email,
       hallName,
@@ -82,12 +89,16 @@ const createReservation = async (req, res, next) => {
       throw new AppError('reservationTime is required.', 400);
     }
 
+    const resolvedName = userName || user_name || customerName || customer_name || patronName || patron_name || guest || name || (req.user ? req.user.displayName : null);
+
     const reservation = await reservationsService.createReservation(req.user ? req.user.id : null, {
       tableId: tableId ? parseInt(tableId, 10) : null,
       partySize: parseInt(partySize || 2, 10),
       reservationTime,
       specialRequests,
-      patronName: patronName || (req.user ? req.user.displayName : null),
+      patronName: resolvedName,
+      userName: resolvedName,
+      customerName: resolvedName,
       phone: phone || (req.user ? req.user.phone : null),
       email: email || (req.user ? req.user.email : null),
       hallName,

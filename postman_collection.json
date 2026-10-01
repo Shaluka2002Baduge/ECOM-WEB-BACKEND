@@ -174,7 +174,7 @@
           }
         },
         {
-          "name": "Login - Patron Customer (CUSTOMER Role)",
+          "name": "Login - User Customer (CUSTOMER Role)",
           "event": [
             {
               "listen": "test",
@@ -202,14 +202,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"patron@ralahami.lk\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"user@ralahami.lk\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "login"]
             },
-            "description": "Authenticates as Patron Customer and sets authToken."
+            "description": "Authenticates as User Customer and sets authToken."
           }
         },
         {

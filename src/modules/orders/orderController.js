@@ -12,10 +12,12 @@ const createOrder = async (req, res, next) => {
     const { items, notes } = req.body;
     const userId = req.user ? req.user.id : null;
 
-    // 1. CAPTURE EXACT GUEST CHECKOUT PATRON DETAILS
+    // 1. CAPTURE EXACT GUEST / USER CHECKOUT DETAILS
     const patronName = 
       (req.body.recipientName && String(req.body.recipientName).trim()) || 
       (req.body.recipient_name && String(req.body.recipient_name).trim()) || 
+      (req.body.userName && String(req.body.userName).trim()) || 
+      (req.body.user_name && String(req.body.user_name).trim()) || 
       (req.body.patronName && String(req.body.patronName).trim()) || 
       (req.body.patron_name && String(req.body.patron_name).trim()) || 
       (req.body.customer_name && String(req.body.customer_name).trim()) || 
@@ -35,9 +37,12 @@ const createOrder = async (req, res, next) => {
 
     const patronEmail = 
       req.body.email || 
+      req.body.userEmail || 
+      req.body.user_email || 
       req.body.customer_email || 
       req.body.customerEmail || 
       req.body.patronEmail || 
+      req.body.patron_email || 
       req.body.deliveryContact?.email || 
       req.body.guestEmail || 
       req.user?.email;
@@ -70,7 +75,7 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    const recipientName = patronName || 'Valued Patron';
+    const recipientName = patronName || 'Valued User';
     const customerEmail = patronEmail;
     const phone = patronPhone;
     const totalDue = Number(req.body.totalAmount || req.body.totalDue || 0);
@@ -414,7 +419,7 @@ const getOrderHistoryByEmail = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Valid email is required', message: 'Valid email is required' });
     }
 
-    console.log(`[PATRON HISTORY] Fetching all feasts for email: ${email}`);
+    console.log(`[USER HISTORY] Fetching all feasts for email: ${email}`);
 
     const orders = await ordersService.getOrdersByEmail(email);
 
@@ -431,11 +436,11 @@ const getOrderHistoryByEmail = async (req, res, next) => {
       data: orders,
     });
   } catch (err) {
-    console.error('[PATRON HISTORY ERROR]', err);
+    console.error('[USER HISTORY ERROR]', err);
     return res.status(500).json({ 
       success: false, 
-      error: 'Failed to retrieve patron order history',
-      message: 'Failed to retrieve patron order history' 
+      error: 'Failed to retrieve user order history',
+      message: 'Failed to retrieve user order history' 
     });
   }
 };

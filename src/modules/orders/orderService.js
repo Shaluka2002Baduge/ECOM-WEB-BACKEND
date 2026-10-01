@@ -169,7 +169,8 @@ const getOrderById = async (identifier, requestingUser = null) => {
 
   const orderResult = await db.query(
     `SELECT o.*, 
-            COALESCE(o.recipient_name, u.display_name, 'Valued Patron') AS customer_name, 
+            COALESCE(o.recipient_name, u.display_name, 'Valued User') AS customer_name, 
+            COALESCE(o.recipient_name, u.display_name, 'Valued User') AS user_name, 
             COALESCE(o.customer_email, u.email) AS customer_email,
             COALESCE(o.customer_phone, u.phone, 'N/A') AS customer_phone
      FROM orders o
@@ -273,7 +274,8 @@ const getAdminOrders = async (statusFilter = null) => {
     SELECT 
       o.id,
       COALESCE(o.order_number, CONCAT('RAALAHAMI-', o.id)) AS order_number,
-      COALESCE(o.recipient_name, r.patron_name, u.display_name, 'Valued Patron') AS customer_name,
+      COALESCE(o.recipient_name, r.patron_name, u.display_name, 'Valued User') AS customer_name,
+      COALESCE(o.recipient_name, r.patron_name, u.display_name, 'Valued User') AS user_name,
       COALESCE(r.phone, u.phone, o.customer_phone, 'N/A') AS phone,
       COALESCE(r.email, u.email, o.customer_email) AS email,
       COALESCE(o.delivery_address, o.notes, '') AS delivery_address,
@@ -608,7 +610,7 @@ const updateOrderStatusByAdmin = async (orderId, rawStatus) => {
 };
 
 /**
- * Retrieve all orders (active, completed, cancelled) for a given patron email
+ * Retrieve all orders (active, completed, cancelled) for a given user email
  */
 const getOrdersByEmail = async (rawEmail) => {
   if (!rawEmail || typeof rawEmail !== 'string') {
@@ -620,14 +622,15 @@ const getOrdersByEmail = async (rawEmail) => {
     throw new AppError('Valid email is required', 400);
   }
 
-  console.log(`[PATRON HISTORY] Fetching all feasts for email: ${email}`);
+  console.log(`[USER HISTORY] Fetching all feasts for email: ${email}`);
 
   const query = `
     SELECT 
       o.id,
       COALESCE(o.order_number, 'RAALAHAMI-' || o.id::text) AS order_number,
-      COALESCE(o.recipient_name, u.display_name, 'Valued Patron') AS customer_name,
-      COALESCE(o.recipient_name, u.display_name, 'Valued Patron') AS recipient_name,
+      COALESCE(o.recipient_name, u.display_name, 'Valued User') AS customer_name,
+      COALESCE(o.recipient_name, u.display_name, 'Valued User') AS recipient_name,
+      COALESCE(o.recipient_name, u.display_name, 'Valued User') AS user_name,
       COALESCE(o.customer_email, u.email, $1) AS email,
       COALESCE(o.customer_email, u.email, $1) AS customer_email,
       COALESCE(o.customer_phone, u.phone, 'N/A') AS phone,

@@ -448,7 +448,7 @@ const createDineInReservation = async ({
       dateVal,
       targetTime.toISOString(),
       specialRequests || null,
-      patronName || 'Valued Patron',
+      patronName || 'Valued User',
       phone || 'N/A',
       email || null,
       orderId || null,
@@ -468,8 +468,9 @@ const getReservations = async (requestingUser, statusFilter) => {
            t.table_number, 
            t.hall_name, 
            t.location_description,
-           COALESCE(r.patron_name, u.display_name, 'Valued Patron') AS patron_name,
-           COALESCE(r.patron_name, u.display_name, 'Valued Patron') AS customer_name,
+           COALESCE(r.patron_name, u.display_name, 'Valued User') AS user_name,
+           COALESCE(r.patron_name, u.display_name, 'Valued User') AS customer_name,
+           COALESCE(r.patron_name, u.display_name, 'Valued User') AS patron_name,
            COALESCE(r.email, u.email) AS customer_email,
            COALESCE(r.email, u.email) AS email,
            COALESCE(r.phone, u.phone, 'N/A') AS customer_phone,
@@ -688,7 +689,7 @@ const markDeparted = async (targetId) => {
  * Inserts confirmed reservation with booking_source = 'Walk-In / Admin' and marks table RESERVED
  */
 const adminBookReservation = async (data = {}) => {
-  const patronName = data.patron_name || data.patronName || data.customer_name || data.customerName || 'Walk-In Guest';
+  const patronName = data.user_name || data.userName || data.patron_name || data.patronName || data.customer_name || data.customerName || 'Walk-In Guest';
   const phone = data.phone || data.phoneNumber || data.customer_phone || 'N/A';
   const email = data.email || data.customer_email || data.customerEmail || null;
   const rawDate = data.reservation_date || data.reservationDate || data.date;

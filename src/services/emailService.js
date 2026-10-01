@@ -409,7 +409,7 @@ const sendWelcomeEmail = async (toEmail, displayName) => {
  */
 const sendOrderConfirmationEmail = async (toEmail, receiptData = {}) => {
   const orderId = receiptData.orderId || receiptData.orderNumber || receiptData.id || 'N/A';
-  const recipientName = receiptData.recipientName || receiptData.customerName || receiptData.customer_name || 'Valued Patron';
+  const recipientName = receiptData.recipientName || receiptData.customerName || receiptData.customer_name || receiptData.userName || receiptData.user_name || 'Valued User';
   const orderType = String(receiptData.orderType || receiptData.order_type || 'DELIVERY').toUpperCase();
   const displayPaymentMethod = resolvePaymentMethodName(receiptData.paymentMethod || receiptData.payment_method, receiptData.orderType || receiptData.order_type);
   const paymentMethod = displayPaymentMethod;

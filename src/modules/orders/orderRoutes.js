@@ -6,7 +6,7 @@ const { verifyToken, optionalToken, requireRole } = require('../../middleware/au
 // POST / allows both authenticated customers and guest checkout
 router.post('/', optionalToken, ordersController.createOrder);
 
-// GET /history/:email retrieves patron order history (all active, completed, cancelled orders)
+// GET /history/:email retrieves user order history (all active, completed, cancelled orders)
 router.get('/history/:email', optionalToken, ordersController.getOrderHistoryByEmail);
 router.get('/history', optionalToken, ordersController.getOrderHistoryByEmail);
 
