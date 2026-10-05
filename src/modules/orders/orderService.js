@@ -28,56 +28,200 @@ const createOrder = async (userId, { items, orderType = 'DINE_IN', notes = null,
   try {
     await client.query('BEGIN');
 
-    // 1. Fetch menu item details and prices to prevent client-side price tampering
-    const itemIds = [];
+    // 1. Separate item lookups to prevent ID collision between menu_items and inventory_items
+    const invItemIds = [];
+    const menuItemIds = [];
+
     for (const item of items) {
-      const rawId = item.id || item.menu_item_id || item.menuItemId || item.itemId;
+      const isExplicitInv =
+        item.is_inventory_item === true ||
+        item.isInventoryItem === true ||
+        item.is_inventory_synced === true ||
+        item.item_source === 'inventory' ||
+        item.source === 'inventory' ||
+        Boolean(item.inventoryItemId || item.inventory_item_id);
+
+      const rawId = item.inventoryItemId || item.inventory_item_id || item.menuItemId || item.menu_item_id || item.id || item.itemId;
       const parsedId = parseInt(rawId, 10);
       if (!rawId || isNaN(parsedId)) {
         console.error('❌ [ORDER ERROR] Received item without ID:', item);
         throw new AppError('Invalid item in cart. Missing item ID.', 400);
       }
-      itemIds.push(parsedId);
+
+      if (isExplicitInv) {
+        if (!invItemIds.includes(parsedId)) invItemIds.push(parsedId);
+      } else {
+        if (!menuItemIds.includes(parsedId)) menuItemIds.push(parsedId);
+      }
     }
 
-    const menuResult = await client.query(
-      'SELECT id, name, price, is_available FROM menu_items WHERE id = ANY($1::int[])',
-      [itemIds]
-    );
-
     const menuMap = new Map();
-    menuResult.rows.forEach((row) => menuMap.set(row.id, row));
+    if (menuItemIds.length > 0) {
+      const menuResult = await client.query(
+        'SELECT id, name, price, is_available, variants, image_url FROM menu_items WHERE id = ANY($1::int[])',
+        [menuItemIds]
+      );
+      menuResult.rows.forEach((row) => {
+        let parsedVariants = [];
+        try {
+          parsedVariants = typeof row.variants === 'string' ? JSON.parse(row.variants) : (row.variants || []);
+        } catch (e) {}
+        menuMap.set(row.id, {
+          ...row,
+          variants: parsedVariants,
+          isMenuItem: true,
+          isInventoryItem: false
+        });
+      });
+    }
+
+    // Check inventory_items for explicit inventory items or missing items
+    const missingIds = menuItemIds.filter((id) => !menuMap.has(id));
+    const finalInvIds = [...new Set([...invItemIds, ...missingIds])];
+
+    const invMap = new Map();
+    if (finalInvIds.length > 0) {
+      const invResult = await client.query(
+        `SELECT id, name, current_stock, minimum_threshold, image_url, variants, (current_stock > 0) AS is_available 
+         FROM inventory_items 
+         WHERE id = ANY($1::int[])`,
+        [finalInvIds]
+      );
+      invResult.rows.forEach((inv) => {
+        let parsedVariants = [];
+        try {
+          parsedVariants = typeof inv.variants === 'string' ? JSON.parse(inv.variants) : (inv.variants || []);
+        } catch (e) {}
+        const basePrice = parsedVariants.length > 0 ? parseFloat(parsedVariants[0].price || 0) : 0;
+        invMap.set(inv.id, {
+          id: inv.id,
+          name: inv.name,
+          price: basePrice,
+          is_available: inv.is_available,
+          variants: parsedVariants,
+          image_url: inv.image_url,
+          isMenuItem: false,
+          isInventoryItem: true
+        });
+      });
+    }
 
     let calculatedTotal = 0;
     const validatedItems = [];
 
+    const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+    const matchSize = (sizeA, sizeB) => {
+      const a = norm(sizeA);
+      const b = norm(sizeB);
+      if (!a || !b) return false;
+      if (a === b) return true;
+      if (a.replace(/l$/, 'liter') === b || b.replace(/l$/, 'liter') === a) return true;
+      if (a === '500ml' && (b === '0.5l' || b === '0.5liter')) return true;
+      if (b === '500ml' && (a === '0.5l' || a === '0.5liter')) return true;
+      if (a === '1l' && (b === '1000ml' || b === '1liter')) return true;
+      if (b === '1l' && (a === '1000ml' || a === '1liter')) return true;
+      if (a === '1.5l' && (b === '1500ml' || b === '1.5liter')) return true;
+      if (b === '1.5l' && (a === '1500ml' || a === '1.5liter')) return true;
+      if (a === '2l' && (b === '2000ml' || b === '2liter')) return true;
+      if (b === '2l' && (a === '2000ml' || a === '2liter')) return true;
+      return false;
+    };
+
     for (const item of items) {
-      const rawId = item.id || item.menu_item_id || item.menuItemId || item.itemId;
+      const rawId = item.inventoryItemId || item.inventory_item_id || item.menuItemId || item.menu_item_id || item.id || item.itemId;
       const itemId = parseInt(rawId, 10);
       if (!itemId) {
         console.error('❌ [ORDER ERROR] Received item without ID:', item);
         throw new AppError('Invalid item in cart. Missing item ID.', 400);
       }
 
-      const menuItem = menuMap.get(itemId);
+      const isExplicitInv =
+        item.is_inventory_item === true ||
+        item.isInventoryItem === true ||
+        item.is_inventory_synced === true ||
+        item.item_source === 'inventory' ||
+        item.source === 'inventory' ||
+        (item.inventoryItemId || item.inventory_item_id);
+
+      const isExplicitMenu =
+        item.is_inventory_item === false ||
+        item.isInventoryItem === false ||
+        item.item_source === 'menu' ||
+        item.source === 'menu';
+
+      let menuItem = null;
+
+      if (isExplicitInv) {
+        menuItem = invMap.get(itemId);
+      } else if (isExplicitMenu) {
+        menuItem = menuMap.get(itemId);
+      } else {
+        const menuMatch = menuMap.get(itemId);
+        const invMatch = invMap.get(itemId);
+        const itemName = String(item.name || item.title || '').toLowerCase().trim();
+
+        if (menuMatch && invMatch) {
+          const cleanMenuName = menuMatch.name.toLowerCase().trim();
+          const cleanInvName = invMatch.name.toLowerCase().trim();
+          if (itemName && (cleanInvName.includes(itemName) || itemName.includes(cleanInvName))) {
+            menuItem = invMatch;
+          } else if (itemName && (cleanMenuName.includes(itemName) || itemName.includes(cleanMenuName))) {
+            menuItem = menuMatch;
+          } else if (item.selectedSize || item.size || item.variant) {
+            menuItem = invMatch;
+          } else {
+            menuItem = menuMatch;
+          }
+        } else {
+          menuItem = menuMatch || invMatch;
+        }
+      }
+
       if (!menuItem) {
-        throw new AppError(`Menu item ID ${itemId} does not exist.`, 400);
+        throw new AppError(`Item ID ${itemId} does not exist in catalog or inventory.`, 400);
       }
       if (!menuItem.is_available) {
-        throw new AppError(`Menu item "${menuItem.name}" is currently unavailable.`, 400);
+        throw new AppError(`Item "${menuItem.name}" is currently unavailable.`, 400);
       }
       const qty = parseInt(item.quantity || item.qty || 1, 10);
       if (!qty || qty <= 0) {
         throw new AppError(`Quantity for item "${menuItem.name}" must be greater than zero.`, 400);
       }
 
-      const unitPrice = parseFloat(menuItem.price);
+      let unitPrice = parseFloat(menuItem.price || 0);
+      const selectedSize = item.selectedSize || item.size || item.variant || null;
+
+      if (selectedSize && menuItem.variants) {
+        let variantList = [];
+        try {
+          variantList = typeof menuItem.variants === 'string' ? JSON.parse(menuItem.variants) : menuItem.variants;
+        } catch (e) {}
+        if (Array.isArray(variantList)) {
+          const matchedVariant = variantList.find((v) => matchSize(v.size, selectedSize));
+          if (matchedVariant && matchedVariant.price !== undefined) {
+            unitPrice = parseFloat(matchedVariant.price);
+          }
+        }
+      } else if (selectedSize && item.price && !isNaN(parseFloat(item.price)) && parseFloat(item.price) > 0) {
+        unitPrice = parseFloat(item.price);
+      }
+
       const lineTotal = unitPrice * qty;
       calculatedTotal += lineTotal;
 
+      const lineItemName = selectedSize && !menuItem.name.includes(`(${selectedSize})`)
+        ? `${menuItem.name} (${selectedSize})`
+        : menuItem.name;
+
       validatedItems.push({
-        menuItemId: menuItem.id,
-        name: menuItem.name,
+        id: menuItem.id,
+        menuItemId: menuItem.isMenuItem ? menuItem.id : null,
+        inventoryItemId: menuItem.isInventoryItem ? menuItem.id : null,
+        is_inventory_item: menuItem.isInventoryItem,
+        item_source: menuItem.isInventoryItem ? 'inventory' : 'menu',
+        name: lineItemName,
+        selectedSize,
+        size: selectedSize,
         quantity: qty,
         unitPrice,
         unit_price: unitPrice,
@@ -121,9 +265,9 @@ const createOrder = async (userId, { items, orderType = 'DINE_IN', notes = null,
     // 3. Insert order items
     for (const line of validatedItems) {
       await client.query(
-        `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, special_instructions)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [createdOrder.id, line.menuItemId, line.quantity, line.unitPrice, line.specialInstructions]
+        `INSERT INTO order_items (order_id, menu_item_id, inventory_item_id, item_name, quantity, unit_price, special_instructions)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [createdOrder.id, line.menuItemId, line.inventoryItemId, line.name, line.quantity, line.unitPrice, line.specialInstructions]
       );
     }
 
@@ -166,24 +310,36 @@ const getOrderById = async (identifier, requestingUser = null) => {
   const cleanId = rawId.replace(/^[#]/, '').trim();
   const isNumeric = /^\d+$/.test(cleanId);
   const numId = isNumeric ? parseInt(cleanId, 10) : null;
-
-  const orderResult = await db.query(
-    `SELECT o.*, 
-            COALESCE(o.recipient_name, u.display_name, 'Valued User') AS customer_name, 
-            COALESCE(o.recipient_name, u.display_name, 'Valued User') AS user_name, 
-            COALESCE(o.customer_email, u.email) AS customer_email,
-            COALESCE(o.customer_phone, u.phone, 'N/A') AS customer_phone
-     FROM orders o
-     LEFT JOIN users u ON o.user_id = u.id
-     WHERE o.id::text = $1 
-        OR o.order_number::text = $1 
-        OR o.order_number::text = $2
-        OR o.order_number ILIKE '%' || $1 || '%'
-        OR ($3::int IS NOT NULL AND o.id = $3::int)
-     ORDER BY o.created_at DESC
-     LIMIT 1`,
-    [cleanId, rawId, numId]
-  );
+  let orderResult;
+  if (isNumeric) {
+    orderResult = await db.query(
+      `SELECT o.*, 
+              COALESCE(o.recipient_name, u.display_name, 'Valued User') AS customer_name, 
+              COALESCE(o.recipient_name, u.display_name, 'Valued User') AS user_name, 
+              COALESCE(o.customer_email, u.email) AS customer_email,
+              COALESCE(o.customer_phone, u.phone, 'N/A') AS customer_phone
+       FROM orders o
+       LEFT JOIN users u ON o.user_id = u.id
+       WHERE o.id = $1 OR o.order_number = $2 OR o.order_number = $3
+       ORDER BY o.created_at DESC
+       LIMIT 1`,
+      [numId, cleanId, rawId]
+    );
+  } else {
+    orderResult = await db.query(
+      `SELECT o.*, 
+              COALESCE(o.recipient_name, u.display_name, 'Valued User') AS customer_name, 
+              COALESCE(o.recipient_name, u.display_name, 'Valued User') AS user_name, 
+              COALESCE(o.customer_email, u.email) AS customer_email,
+              COALESCE(o.customer_phone, u.phone, 'N/A') AS customer_phone
+       FROM orders o
+       LEFT JOIN users u ON o.user_id = u.id
+       WHERE o.order_number = $1 OR o.order_number ILIKE $1
+       ORDER BY o.created_at DESC
+       LIMIT 1`,
+      [rawId]
+    );
+  }
 
   if (orderResult.rows.length === 0) {
     throw new AppError('Order not found.', 404);
@@ -203,10 +359,14 @@ const getOrderById = async (identifier, requestingUser = null) => {
 
   // Fetch line items
   const itemsResult = await db.query(
-    `SELECT oi.id, oi.menu_item_id, m.name, oi.quantity, oi.unit_price, oi.special_instructions,
-            (oi.quantity * oi.unit_price) AS line_total
+    `SELECT oi.id, oi.menu_item_id, oi.inventory_item_id,
+            COALESCE(oi.item_name, m.name, inv.name, 'Item') AS name, 
+            oi.quantity, oi.unit_price, oi.special_instructions,
+            (oi.quantity * oi.unit_price) AS line_total,
+            COALESCE(m.image_url, inv.image_url) AS image_url
      FROM order_items oi
-     JOIN menu_items m ON oi.menu_item_id = m.id
+     LEFT JOIN menu_items m ON oi.menu_item_id = m.id
+     LEFT JOIN inventory_items inv ON oi.inventory_item_id = inv.id
      WHERE oi.order_id = $1`,
     [order.id]
   );
@@ -314,10 +474,14 @@ const getAdminOrders = async (statusFilter = null) => {
 
   const orderIds = orders.map((o) => o.id);
   const itemsResult = await db.query(
-    `SELECT oi.id, oi.order_id, oi.menu_item_id, m.name, oi.quantity, oi.unit_price, oi.special_instructions,
-            (oi.quantity * oi.unit_price) AS line_total
+    `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.inventory_item_id,
+            COALESCE(oi.item_name, m.name, inv.name, 'Item') AS name, 
+            oi.quantity, oi.unit_price, oi.special_instructions,
+            (oi.quantity * oi.unit_price) AS line_total,
+            COALESCE(m.image_url, inv.image_url) AS image_url
      FROM order_items oi
-     JOIN menu_items m ON oi.menu_item_id = m.id
+     LEFT JOIN menu_items m ON oi.menu_item_id = m.id
+     LEFT JOIN inventory_items inv ON oi.inventory_item_id = inv.id
      WHERE oi.order_id = ANY($1::int[])`,
     [orderIds]
   );
@@ -399,6 +563,22 @@ const transitionOrderStatus = async (orderId, newStatus) => {
     [newStatus, orderId]
   );
 
+  if (newStatus === 'CANCELLED' && currentStatus !== 'CANCELLED') {
+    try {
+      const itemsRes = await db.query(
+        `SELECT oi.id, oi.menu_item_id, oi.inventory_item_id, oi.item_name, oi.quantity, oi.unit_price, oi.special_instructions 
+         FROM order_items oi 
+         WHERE oi.order_id = $1`,
+        [orderId]
+      );
+      if (itemsRes.rows && itemsRes.rows.length > 0) {
+        await inventoryService.restockInventoryStock(itemsRes.rows);
+      }
+    } catch (restockErr) {
+      console.warn('⚠️ [Stock Reversal Notice in transitionOrderStatus]:', restockErr.message);
+    }
+  }
+
   const updatedOrder = updateResult.rows[0] || { id: orderId, status: newStatus, order_type: currentResult.rows[0].order_type };
   updatedOrder.orderNumber = updatedOrder.order_number || `RAALAHAMI-${updatedOrder.id}`;
   updatedOrder.order_number = updatedOrder.orderNumber;
@@ -427,12 +607,10 @@ const updateOrderStatusByAdmin = async (orderId, rawStatus) => {
     currentResult = await db.query(
       `SELECT * FROM orders 
        WHERE id = $1 
-          OR id::text = $2 
           OR order_number = $2 
           OR order_number = $3 
-          OR order_number ILIKE $4
        LIMIT 1`,
-      [parseInt(cleanId, 10), cleanId, rawId, `%${cleanId}%`]
+      [parseInt(cleanId, 10), cleanId, rawId]
     );
   } else {
     currentResult = await db.query(
@@ -555,12 +733,9 @@ const updateOrderStatusByAdmin = async (orderId, rawStatus) => {
     `UPDATE orders
      SET status = $1,
          updated_at = NOW()
-     WHERE id::text = $2 
-        OR order_number::text = $2 
-        OR id = $3
-        OR order_number ILIKE '%' || $2 || '%'
+     WHERE id = $2
      RETURNING *`,
-    [dbStatus, cleanId, order.id]
+    [dbStatus, order.id]
   );
 
   console.log(`[STATUS UPDATE SUCCESS] Order #${orderId} updated to ${dbStatus}`);
@@ -569,9 +744,27 @@ const updateOrderStatusByAdmin = async (orderId, rawStatus) => {
   await db.query(
     `UPDATE reservations 
      SET status = $1 
-     WHERE order_id::text = $2 OR id::text = $2 OR order_id = $3`,
-    [dbStatus, cleanId, order.id]
+     WHERE order_id = $2`,
+    [dbStatus, order.id]
   ).catch(() => {});
+
+  // Stock Reversal on Order Cancellation
+  if (dbStatus === 'CANCELLED' && order.status !== 'CANCELLED') {
+    try {
+      const itemsRes = await db.query(
+        `SELECT oi.id, oi.menu_item_id, oi.inventory_item_id, oi.item_name, oi.quantity, oi.unit_price, oi.special_instructions 
+         FROM order_items oi 
+         WHERE oi.order_id = $1`,
+        [order.id]
+      );
+      if (itemsRes.rows && itemsRes.rows.length > 0) {
+        await inventoryService.restockInventoryStock(itemsRes.rows);
+        console.log(`🔄 [STOCK REVERSAL]: Restored inventory for cancelled Order #${order.id}`);
+      }
+    } catch (restockErr) {
+      console.warn('⚠️ [Stock Reversal Notice in updateOrderStatusByAdmin]:', restockErr.message);
+    }
+  }
 
   const updatedOrder = updateResult.rows[0] || { ...order, status: dbStatus, updated_at: new Date().toISOString() };
   updatedOrder.orderNumber = updatedOrder.order_number || `RAALAHAMI-${updatedOrder.id}`;
@@ -669,10 +862,14 @@ const getOrdersByEmail = async (rawEmail) => {
   if (orders.length > 0) {
     const orderIds = orders.map((o) => o.id);
     const itemsResult = await db.query(
-      `SELECT oi.id, oi.order_id, oi.menu_item_id, m.name, oi.quantity, oi.unit_price, oi.special_instructions,
-              (oi.quantity * oi.unit_price) AS line_total, m.image_url
+      `SELECT oi.id, oi.order_id, oi.menu_item_id, oi.inventory_item_id,
+              COALESCE(oi.item_name, m.name, inv.name, 'Item') AS name, 
+              oi.quantity, oi.unit_price, oi.special_instructions,
+              (oi.quantity * oi.unit_price) AS line_total, 
+              COALESCE(m.image_url, inv.image_url) AS image_url
        FROM order_items oi
-       JOIN menu_items m ON oi.menu_item_id = m.id
+       LEFT JOIN menu_items m ON oi.menu_item_id = m.id
+       LEFT JOIN inventory_items inv ON oi.inventory_item_id = inv.id
        WHERE oi.order_id = ANY($1::int[])`,
       [orderIds]
     ).catch(() => ({ rows: [] }));

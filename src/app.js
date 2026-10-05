@@ -48,6 +48,9 @@ app.options('*', cors(corsOptions)); // Handle OPTIONS preflight
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+app.use('/public/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // AOP Logging Aspect: Intercepts all incoming HTTP calls
 app.use(loggingAspect);

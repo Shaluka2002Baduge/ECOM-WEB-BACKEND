@@ -17,9 +17,23 @@ const getInventory = async (req, res, next) => {
 
 const addInventoryItem = async (req, res, next) => {
   try {
-    const { name, category, supplier, unit, currentStock, stock, minimumThreshold, threshold } = req.body;
+    const { name, category, supplier, unit, currentStock, stock, minimumThreshold, threshold, image, imageUrl, image_url, variants } = req.body;
     if (!name) {
       throw new AppError('Item name is required.', 400);
+    }
+
+    let finalImage = image || imageUrl || image_url || null;
+    if (req.file) {
+      finalImage = `/uploads/${req.file.filename}`;
+    }
+
+    let parsedVariants = variants || [];
+    if (typeof variants === 'string') {
+      try {
+        parsedVariants = JSON.parse(variants);
+      } catch (e) {
+        parsedVariants = [];
+      }
     }
 
     const item = await inventoryService.addInventoryItem({
@@ -29,6 +43,10 @@ const addInventoryItem = async (req, res, next) => {
       unit: unit || 'kg',
       currentStock: currentStock !== undefined ? parseFloat(currentStock) : (stock !== undefined ? parseFloat(stock) : 0),
       minimumThreshold: minimumThreshold !== undefined ? parseFloat(minimumThreshold) : (threshold !== undefined ? parseFloat(threshold) : 0),
+      image: finalImage,
+      imageUrl: finalImage,
+      image_url: finalImage,
+      variants: parsedVariants
     });
 
     res.status(201).json({
@@ -71,7 +89,21 @@ const updateInventoryItem = async (req, res, next) => {
       throw new AppError('Invalid inventory item ID.', 400);
     }
 
-    const updated = await inventoryService.updateInventoryItem(id, req.body);
+    const payload = { ...req.body };
+    if (req.file) {
+      payload.image = `/uploads/${req.file.filename}`;
+      payload.imageUrl = `/uploads/${req.file.filename}`;
+      payload.image_url = `/uploads/${req.file.filename}`;
+    }
+    if (typeof payload.variants === 'string') {
+      try {
+        payload.variants = JSON.parse(payload.variants);
+      } catch (e) {
+        payload.variants = [];
+      }
+    }
+
+    const updated = await inventoryService.updateInventoryItem(id, payload);
 
     res.status(200).json({
       success: true,

@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
     is_halal BOOLEAN NOT NULL DEFAULT FALSE,
     is_gluten_free BOOLEAN NOT NULL DEFAULT FALSE,
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    variants JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -142,6 +143,8 @@ CREATE TABLE IF NOT EXISTS inventory_items (
     unit VARCHAR(50) NOT NULL, -- e.g., 'kg', 'g', 'liters', 'units', 'leaves', 'bottles'
     current_stock NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (current_stock >= 0),
     minimum_threshold NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (minimum_threshold >= 0),
+    image_url TEXT,
+    variants JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -157,7 +160,7 @@ EXECUTE FUNCTION update_timestamp_column();
 CREATE TABLE IF NOT EXISTS menu_item_recipes (
     id SERIAL PRIMARY KEY,
     menu_item_id INT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
-    inventory_item_id INT NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+    inventory_item_id INT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
     quantity_required NUMERIC(10, 2) NOT NULL CHECK (quantity_required > 0),
     CONSTRAINT uq_recipe_menu_inventory UNIQUE (menu_item_id, inventory_item_id)
 );
@@ -228,11 +231,13 @@ BEFORE UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_timestamp_column();
 
--- 4.10 ORDER ITEMS TABLE (Line items for each order)
+-- 4.10 ORDER ITEMS TABLE (Line items for each order - supports menu_items & inventory_items)
 CREATE TABLE IF NOT EXISTS order_items (
     id SERIAL PRIMARY KEY,
     order_id INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    menu_item_id INT NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
+    menu_item_id INT REFERENCES menu_items(id) ON DELETE SET NULL,
+    inventory_item_id INT REFERENCES inventory_items(id) ON DELETE SET NULL,
+    item_name VARCHAR(255),
     quantity INT NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(10, 2) NOT NULL CHECK (unit_price >= 0),
     special_instructions TEXT,

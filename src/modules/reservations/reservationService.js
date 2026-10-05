@@ -430,8 +430,20 @@ const createDineInReservation = async ({
     }
   }
 
-  const targetTime = reservationTime ? new Date(reservationTime) : new Date();
-  const dateVal = reservationDate || targetTime.toISOString().split('T')[0];
+  const dateVal = reservationDate || new Date().toISOString().split('T')[0];
+  let targetTime = new Date();
+  if (reservationTime) {
+    if (typeof reservationTime === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(reservationTime.trim())) {
+      const timeStr = reservationTime.trim();
+      targetTime = new Date(`${dateVal}T${timeStr.length === 5 ? timeStr + ':00' : timeStr}`);
+    } else {
+      const parsed = new Date(reservationTime);
+      if (!isNaN(parsed.getTime())) {
+        targetTime = parsed;
+      }
+    }
+  }
+  const formattedTargetTime = isNaN(targetTime.getTime()) ? new Date().toISOString() : targetTime.toISOString();
 
   const result = await db.query(
     `INSERT INTO reservations (
@@ -446,7 +458,7 @@ const createDineInReservation = async ({
       resolvedTableNumber,
       partySize,
       dateVal,
-      targetTime.toISOString(),
+      formattedTargetTime,
       specialRequests || null,
       patronName || 'Valued User',
       phone || 'N/A',

@@ -45,7 +45,8 @@ VALUES
   (3, 'Signature Kottu & Roti', 'kottu-and-roti', 'Chopped Godamba roti tossed vigorously on hot griddles with farm spices and cheeses.'),
   (4, 'Coastal Fresh Seafood', 'fresh-seafood', 'Daily catch lagoon crabs, prawns, and cuttlefish cooked in aromatic sauces.'),
   (5, 'Authentic Desserts', 'authentic-desserts', 'Traditional sweet delicacies including spiced jaggery puddings and tropical treats.'),
-  (6, 'Craft Beverages', 'craft-beverages', 'Fresh island coolers, king coconut blends, and spiced Ceylon tea.')
+  (6, 'Crafted Drinks', 'crafted-drinks', 'Artisanal juices, handcrafted iced coolers, spiced lassis, and herbal infusions prepared fresh to order.'),
+  (7, 'Beverages & Water Bottles', 'beverages-water-bottles', 'Chilled estate mineral water and bottled beverages synced live from our cellars.')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug;
 
 -- 4. MENU ITEMS SEED (WCAG Compliant image_alt_text + Dietary tags)
@@ -62,28 +63,30 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price;
 
 -- 5. INVENTORY ITEMS SEED
-INSERT INTO inventory_items (id, name, category, supplier, unit, current_stock, minimum_threshold)
+INSERT INTO inventory_items (id, name, category, supplier, unit, current_stock, minimum_threshold, image_url, variants)
 VALUES
-  (1, 'Boneless Chicken Breast', 'Meat & Poultry', 'Central Highlands Farm', 'kg', 45.00, 10.00),
-  (2, 'Lagoon Mud Crab', 'Seafood', 'Negombo Coastal Co-op', 'kg', 20.00, 5.00),
-  (3, 'Canned Mackerel Fish', 'Seafood', 'Mirissa Fisheries', 'kg', 15.00, 3.00),
-  (4, 'Godamba Roti Sheets', 'Grains & Rice', 'Colombo Artisan Bakers', 'pieces', 120.00, 30.00),
-  (5, 'Thick Coconut Milk', 'Coconuts & Produce', 'Kurunegala Coconut Triangle', 'liters', 50.00, 12.00),
-  (6, 'Ceylon Roasted Curry Powder', 'Spices & Seasoning', 'Jaffna Heritage Spices', 'kg', 8.50, 2.00),
-  (7, 'Kitul Palm Jaggery', 'Sweeteners & Treacle', 'Sinharaja Rainforest Guild', 'kg', 12.00, 3.00),
-  (8, 'Red Split Lentils', 'Grains & Rice', 'Polonnaruwa Mills', 'kg', 35.00, 8.00),
-  (9, 'Fresh King Coconuts', 'Coconuts & Produce', 'Gampaha Organic Groves', 'units', 60.00, 15.00),
-  (10, 'Natural Spring Water Bottles (750ml)', 'Beverages & Water Bottles', 'Knuckles Mountain Springs', 'bottles', 150.00, 30.00),
-  (11, 'Charred Banana Leaves Packaging', 'Packaging & Containers', 'Gampaha Eco Crafters', 'leaves', 350.00, 100.00),
-  (12, 'Artisan Craft Ginger Beer (330ml)', 'Beverages & Water Bottles', 'Ceylon Craft Brews', 'bottles', 85.00, 20.00),
-  (13, 'Cheddar Cheese Block', 'Dairy & Oils', 'Nuwara Eliya Dairies', 'kg', 14.00, 4.00)
+  (1, 'Boneless Chicken Breast', 'Meat & Poultry', 'Central Highlands Farm', 'kg', 45.00, 10.00, 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (2, 'Lagoon Mud Crab', 'Seafood', 'Negombo Coastal Co-op', 'kg', 20.00, 5.00, 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (3, 'Canned Mackerel Fish', 'Seafood', 'Mirissa Fisheries', 'kg', 15.00, 3.00, 'https://images.unsplash.com/photo-1541529086526-db283c563270?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (4, 'Godamba Roti Sheets', 'Grains & Rice', 'Colombo Artisan Bakers', 'pieces', 120.00, 30.00, 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (5, 'Thick Coconut Milk', 'Coconuts & Produce', 'Kurunegala Coconut Triangle', 'liters', 50.00, 12.00, 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (6, 'Ceylon Roasted Curry Powder', 'Spices & Seasoning', 'Jaffna Heritage Spices', 'kg', 8.50, 2.00, 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (7, 'Kitul Palm Jaggery', 'Sweeteners & Treacle', 'Sinharaja Rainforest Guild', 'kg', 12.00, 3.00, 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (8, 'Red Split Lentils', 'Grains & Rice', 'Polonnaruwa Mills', 'kg', 35.00, 8.00, 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (9, 'Fresh King Coconuts', 'Coconuts & Produce', 'Gampaha Organic Groves', 'units', 60.00, 15.00, 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (10, 'Natural Mountain Spring Water Bottle', 'Beverages & Water Bottles', 'Knuckles Mountain Springs', 'bottles', 140.00, 30.00, 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?auto=format&fit=crop&w=800&q=80', '[{"size":"500ml","stock":50,"price":150},{"size":"1L","stock":40,"price":250},{"size":"1.5L","stock":30,"price":350},{"size":"2L","stock":20,"price":450}]'::jsonb),
+  (11, 'Charred Banana Leaves Packaging', 'Packaging & Containers', 'Gampaha Eco Crafters', 'leaves', 350.00, 100.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (13, 'Cheddar Cheese Block', 'Dairy & Oils', 'Nuwara Eliya Dairies', 'kg', 14.00, 4.00, 'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?auto=format&fit=crop&w=800&q=80', '[]'::jsonb),
+  (16, 'Cocacola', 'Beverages & Water Bottles', 'Ceylon Craft Brews', 'bottles', 105.00, 20.00, '/uploads/inv-1790845264830-169188868.jpeg', '[{"size":"500ml","stock":40,"price":350},{"size":"1L","stock":30,"price":650},{"size":"1.5L","stock":20,"price":950},{"size":"2L","stock":15,"price":1250}]'::jsonb)
 ON CONFLICT (id) DO UPDATE SET 
   name = EXCLUDED.name,
   category = EXCLUDED.category,
   supplier = EXCLUDED.supplier,
   unit = EXCLUDED.unit,
   current_stock = EXCLUDED.current_stock,
-  minimum_threshold = EXCLUDED.minimum_threshold;
+  minimum_threshold = EXCLUDED.minimum_threshold,
+  image_url = EXCLUDED.image_url,
+  variants = EXCLUDED.variants;
 
 -- 6. MENU ITEM RECIPES SEED (Bill of Materials)
 INSERT INTO menu_item_recipes (menu_item_id, inventory_item_id, quantity_required)
@@ -100,7 +103,7 @@ VALUES
   -- Dish 5: Cheese Chicken Kottu requires Roti (2 pcs), Chicken (0.20kg), Cheese (0.08kg)
   (5, 4, 2.00),
   (5, 1, 0.20),
-  (5, 10, 0.08),
+  (5, 13, 0.08),
   -- Dish 6: Crab Curry requires Lagoon Crab (0.60kg), Spices (0.05kg), Coconut Milk (0.10L)
   (6, 2, 0.60),
   (6, 6, 0.05),
