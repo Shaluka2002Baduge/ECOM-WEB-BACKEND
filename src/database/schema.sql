@@ -338,6 +338,23 @@ BEFORE UPDATE ON settings
 FOR EACH ROW
 EXECUTE FUNCTION update_timestamp_column();
 
+-- 4.14 SCORES TABLE (Leaderboards & Gamification System)
+CREATE TABLE IF NOT EXISTS scores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL CHECK (score >= 0),
+    game_mode VARCHAR(50) DEFAULT 'STANDARD',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP TRIGGER IF EXISTS trg_scores_updated_at ON scores;
+CREATE TRIGGER trg_scores_updated_at
+BEFORE UPDATE ON scores
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp_column();
+
 -- ====================================================================
 -- 5. PERFORMANCE & SEARCH INDEXES
 -- ====================================================================
@@ -360,3 +377,6 @@ CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
 CREATE INDEX IF NOT EXISTS idx_inquiries_email ON inquiries(email);
 CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+CREATE INDEX IF NOT EXISTS idx_scores_user_id ON scores(user_id);
+CREATE INDEX IF NOT EXISTS idx_scores_score_desc ON scores(score DESC);
+

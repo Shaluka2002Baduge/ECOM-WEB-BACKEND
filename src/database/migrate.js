@@ -474,6 +474,18 @@ const runAutoMigration = async (options = {}) => {
         INSERT INTO settings (id, restaurant_name, tagline, address, phone, email, website, currency_symbol, tax_rate, service_charge_rate, delivery_fee, opening_time, closing_time, is_dine_in_enabled, is_delivery_enabled, is_takeaway_enabled, order_notification_email)
         VALUES (1, 'Raalahami Royal Heritage Restaurant', 'Authentic Ceylon Heritage & Royal Dining Experience', 'Riverside Road, Ratnapura, Sri Lanka', '+94 77 123 4567', 'info@raalahami.lk', 'https://raalahami.lk', 'LKR', 0.00, 0.00, 350.00, '10:00 AM', '11:00 PM', TRUE, TRUE, TRUE, 'orders@raalahami.lk')
         ON CONFLICT (id) DO NOTHING;
+
+        CREATE TABLE IF NOT EXISTS scores (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          score INTEGER NOT NULL CHECK (score >= 0),
+          game_mode VARCHAR(50) DEFAULT 'STANDARD',
+          metadata JSONB DEFAULT '{}',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_scores_user_id ON scores(user_id);
+        CREATE INDEX IF NOT EXISTS idx_scores_score_desc ON scores(score DESC);
       `);
 
       // Seed / Update Beverage and Water Bottle Size Variants (500ml, 1L, 1.5L, 2L)

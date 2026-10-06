@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "validate": "node scripts/validate-system.js",
     "migrate": "node src/database/migrate.js",
     "seed:financials": "node src/database/seedFinancials.js"
   },

@@ -20,6 +20,7 @@ const paymentRoutes = require('./modules/payments/paymentRoutes');
 const reviewRoutes = require('./modules/reviews/reviewRoutes');
 const inquiryRoutes = require('./modules/inquiries/inquiryRoutes');
 const financialRoutes = require('./modules/financials/financialRoutes');
+const scoreRoutes = require('./modules/scores/scoreRoutes');
 
 const app = express();
 
@@ -127,6 +128,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/financials', financialRoutes);
 app.use('/api/reports', financialRoutes);
+app.use('/api/scores', scoreRoutes);
 app.get('/api/settings', (req, res, next) => require('./modules/settings/settingsController').getSettings(req, res, next));
 
 // ====================================================================
