@@ -18,6 +18,8 @@ const orderRoutes = require('./modules/orders/orderRoutes');
 const reservationRoutes = require('./modules/reservations/reservationRoutes');
 const paymentRoutes = require('./modules/payments/paymentRoutes');
 const reviewRoutes = require('./modules/reviews/reviewRoutes');
+const inquiryRoutes = require('./modules/inquiries/inquiryRoutes');
+const financialRoutes = require('./modules/financials/financialRoutes');
 
 const app = express();
 
@@ -48,7 +50,20 @@ app.options('*', cors(corsOptions)); // Handle OPTIONS preflight
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+const fs = require('fs');
 const path = require('path');
+
+// Locate compiled React frontend distribution directory
+const candidateDistPaths = [
+  path.resolve(__dirname, '../../ECOM-WEB-FRONTEND/dist'),
+  path.resolve(__dirname, '../public/dist'),
+  path.resolve(__dirname, '../public')
+];
+const frontendDistPath = candidateDistPaths.find(p => fs.existsSync(path.join(p, 'index.html')));
+
+if (frontendDistPath) {
+  app.use(express.static(frontendDistPath));
+}
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/public/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
@@ -58,16 +73,6 @@ app.use(loggingAspect);
 // ====================================================================
 // 2. HEALTH & SYSTEM METRICS
 // ====================================================================
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Ralahami Restaurant Enterprise Backend Operational',
-    version: '1.0.0',
-    documentation: '/api',
-    health: '/api/health',
-  });
-});
-
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 app.get('/api/health', (req, res) => {
@@ -80,7 +85,6 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
 
 app.get('/api', (req, res) => {
   res.status(200).json({
@@ -99,6 +103,9 @@ app.get('/api', (req, res) => {
       reservations: '/api/reservations',
       payments: '/api/payments',
       reviews: '/api/reviews',
+      inquiries: '/api/inquiries',
+      financials: '/api/financials',
+      reports: '/api/reports'
     },
   });
 });
@@ -117,18 +124,39 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
-
-
+app.use('/api/inquiries', inquiryRoutes);
+app.use('/api/financials', financialRoutes);
+app.use('/api/reports', financialRoutes);
+app.get('/api/settings', (req, res, next) => require('./modules/settings/settingsController').getSettings(req, res, next));
 
 // ====================================================================
-// 4. UNMATCHED ROUTE (404) HANDLER
+// 4. UNMATCHED /api/* 404 HANDLER
 // ====================================================================
-app.all('*', (req, res, next) => {
-  next(new AppError(`Cannot find endpoint ${req.method} ${req.originalUrl} on this server.`, 404));
+app.all('/api/*', (req, res, next) => {
+  next(new AppError(`Cannot find API endpoint ${req.method} ${req.originalUrl} on this server.`, 404));
 });
 
 // ====================================================================
-// 5. GLOBAL ERROR HANDLING ASPECT (AOP)
+// 5. SPA CATCH-ALL FALLBACK (Single Page Application Deep-Linking)
+// Direct deep links and browser refreshes (e.g. /admin/staff, /admin/reports,
+// /admin/inquiries, /menu, /about) are routed to React's index.html.
+// ====================================================================
+app.get('*', (req, res) => {
+  if (frontendDistPath && fs.existsSync(path.join(frontendDistPath, 'index.html'))) {
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Ralahami Restaurant Enterprise Backend Operational',
+    version: '1.0.0',
+    documentation: '/api',
+    health: '/api/health',
+  });
+});
+
+// ====================================================================
+// 6. GLOBAL ERROR HANDLING ASPECT (AOP)
 // ====================================================================
 app.use(errorAspect);
 

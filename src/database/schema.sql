@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(25),
     role user_role NOT NULL DEFAULT 'CUSTOMER',
+    department VARCHAR(150) DEFAULT 'General Operations',
+    shift_status VARCHAR(50) DEFAULT 'Active Shift',
     reset_otp VARCHAR(10),
     reset_otp_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -266,6 +268,76 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4.14 INQUIRIES TABLE (Customer palace inquiries & concierge replies)
+CREATE TABLE IF NOT EXISTS inquiries (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    inquiry_type VARCHAR(100) NOT NULL DEFAULT 'General Inquiry',
+    message TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    admin_reply TEXT,
+    replied_at TIMESTAMPTZ,
+    replied_by VARCHAR(150),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP TRIGGER IF EXISTS trg_inquiries_updated_at ON inquiries;
+CREATE TRIGGER trg_inquiries_updated_at
+BEFORE UPDATE ON inquiries
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp_column();
+
+-- 4.15 EXPENSES & PAYROLL TABLE (Operational overhead, staff salaries & ingredient procurement)
+CREATE TABLE IF NOT EXISTS expenses (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(100) NOT NULL DEFAULT 'OPERATIONAL_OVERHEAD', -- 'STAFF_PAYROLL', 'OPERATIONAL_OVERHEAD', 'INVENTORY_PURCHASE', 'UTILITIES', 'MARKETING', 'EQUIPMENT', 'OTHER'
+    amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    description TEXT,
+    payment_method VARCHAR(50) DEFAULT 'BANK_TRANSFER',
+    recorded_by VARCHAR(150),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP TRIGGER IF EXISTS trg_expenses_updated_at ON expenses;
+CREATE TRIGGER trg_expenses_updated_at
+BEFORE UPDATE ON expenses
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp_column();
+
+-- 4.16 SETTINGS TABLE (Restaurant profile, currency, tax rates & palace operational configurations)
+CREATE TABLE IF NOT EXISTS settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    restaurant_name VARCHAR(255) NOT NULL DEFAULT 'Raalahami Royal Heritage Restaurant',
+    tagline VARCHAR(255) DEFAULT 'Authentic Ceylon Heritage & Royal Dining Experience',
+    address VARCHAR(255) NOT NULL DEFAULT 'Riverside Road, Ratnapura, Sri Lanka',
+    phone VARCHAR(50) NOT NULL DEFAULT '+94 77 123 4567',
+    email VARCHAR(150) NOT NULL DEFAULT 'info@raalahami.lk',
+    website VARCHAR(150) DEFAULT 'https://raalahami.lk',
+    currency_symbol VARCHAR(20) NOT NULL DEFAULT 'LKR',
+    tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    service_charge_rate NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+    delivery_fee NUMERIC(10, 2) NOT NULL DEFAULT 350.00,
+    opening_time VARCHAR(20) DEFAULT '10:00 AM',
+    closing_time VARCHAR(20) DEFAULT '11:00 PM',
+    is_dine_in_enabled BOOLEAN DEFAULT TRUE,
+    is_delivery_enabled BOOLEAN DEFAULT TRUE,
+    is_takeaway_enabled BOOLEAN DEFAULT TRUE,
+    order_notification_email VARCHAR(150) DEFAULT 'orders@raalahami.lk',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP TRIGGER IF EXISTS trg_settings_updated_at ON settings;
+CREATE TRIGGER trg_settings_updated_at
+BEFORE UPDATE ON settings
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp_column();
+
 -- ====================================================================
 -- 5. PERFORMANCE & SEARCH INDEXES
 -- ====================================================================
@@ -284,3 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON reviews(order_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
+CREATE INDEX IF NOT EXISTS idx_inquiries_email ON inquiries(email);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);

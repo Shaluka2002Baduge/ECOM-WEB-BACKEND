@@ -16,19 +16,63 @@ const ensureDefaultCredentials = async () => {
   const defaultAccounts = [
     {
       id: '11111111-2222-3333-4444-555555555501',
-      displayName: 'System Administrator',
+      displayName: 'Duminda Alwis',
       email: 'admin@ralahami.lk',
       password: 'Password123!',
       role: 'ADMIN',
+      department: 'Executive Management',
+      shift_status: 'Active Shift',
       phone: '+94771234567',
     },
     {
       id: '11111111-2222-3333-4444-555555555502',
-      displayName: 'Kitchen Head Chef',
+      displayName: 'Nimalka Perera',
       email: 'kitchen@ralahami.lk',
       password: 'Password123!',
-      role: 'MANAGER',
+      role: 'KITCHEN_STAFF',
+      department: 'Hot Line & Curry Station',
+      shift_status: 'Active Shift',
       phone: '+94773456789',
+    },
+    {
+      id: '11111111-2222-3333-4444-555555555504',
+      displayName: 'Kasun Bandara',
+      email: 'manager@ralahami.lk',
+      password: 'Password123!',
+      role: 'MANAGER',
+      department: 'Dining Hall & Reservations',
+      shift_status: 'Active Shift',
+      phone: '+94772345678',
+    },
+    {
+      id: '11111111-2222-3333-4444-555555555505',
+      displayName: 'Samantha Jayasinghe',
+      email: 'samantha.chef@raalahami.lk',
+      password: 'Password123!',
+      role: 'KITCHEN_STAFF',
+      department: 'Seafood & Grill Station',
+      shift_status: 'Active Shift',
+      phone: '+94774567890',
+    },
+    {
+      id: '11111111-2222-3333-4444-555555555506',
+      displayName: 'Roshan Silva',
+      email: 'roshan.kitchen@raalahami.lk',
+      password: 'Password123!',
+      role: 'KITCHEN_STAFF',
+      department: 'Hopper & Prep Station',
+      shift_status: 'Off Duty',
+      phone: '+94775678902',
+    },
+    {
+      id: '11111111-2222-3333-4444-555555555507',
+      displayName: 'Amara Weerasinghe',
+      email: 'amara.waiter@raalahami.lk',
+      password: 'Password123!',
+      role: 'WAITER',
+      department: 'Royal Courtyard & Balcony Floor',
+      shift_status: 'Active Shift',
+      phone: '+94776789012',
     },
     {
       id: '11111111-2222-3333-4444-555555555500',
@@ -36,6 +80,8 @@ const ensureDefaultCredentials = async () => {
       email: 'user@ralahami.lk',
       password: 'Password123!',
       role: 'CUSTOMER',
+      department: 'Customer',
+      shift_status: 'Active Shift',
       phone: '+94775678901',
     },
     {
@@ -44,29 +90,30 @@ const ensureDefaultCredentials = async () => {
       email: 'patron@ralahami.lk',
       password: 'Password123!',
       role: 'CUSTOMER',
+      department: 'Customer',
+      shift_status: 'Active Shift',
       phone: '+94775678901',
     },
-    {
-      id: '11111111-2222-3333-4444-555555555504',
-      displayName: 'Operations Manager',
-      email: 'manager@ralahami.lk',
-      password: 'Password123!',
-      role: 'MANAGER',
-      phone: '+94772345678',
-    },
   ];
+
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(150) DEFAULT 'General Operations';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS shift_status VARCHAR(50) DEFAULT 'Active Shift';
+  `);
 
   for (const account of defaultAccounts) {
     const passwordHash = await bcrypt.hash(account.password, 10);
     await pool.query(
-      `INSERT INTO users (id, display_name, email, password_hash, role, phone)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (id, display_name, email, password_hash, role, phone, department, shift_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (email) DO UPDATE SET
          display_name = EXCLUDED.display_name,
          password_hash = EXCLUDED.password_hash,
          role = EXCLUDED.role,
-         phone = EXCLUDED.phone;`,
-      [account.id, account.displayName, account.email.toLowerCase(), passwordHash, account.role, account.phone]
+         phone = EXCLUDED.phone,
+         department = EXCLUDED.department,
+         shift_status = EXCLUDED.shift_status;`,
+      [account.id, account.displayName, account.email.toLowerCase(), passwordHash, account.role, account.phone, account.department, account.shift_status]
     );
   }
 
@@ -237,6 +284,73 @@ const seedBeverageVariants = async () => {
 };
 
 /**
+ * Seed baseline operational expenses, payroll, and utility costs
+ * if the expenses table is currently empty
+ */
+const seedExpenses = async () => {
+  const countRes = await pool.query('SELECT COUNT(*)::int AS count FROM expenses');
+  if (countRes.rows[0]?.count === 0) {
+    console.log('[AutoMigration]: Seeding baseline operational overhead, payroll, and utilities...');
+    const defaultExpenses = [
+      {
+        title: 'Brigade Payroll - Kitchen & Floor Staff (Monthly)',
+        category: 'STAFF_PAYROLL',
+        amount: 650000.00,
+        description: 'Executive Chef, Sous Chefs, Grill Masters, and Floor Captains monthly payroll',
+        payment_method: 'BANK_TRANSFER',
+        recorded_by: 'Duminda Alwis (Admin)',
+        expense_date: new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0]
+      },
+      {
+        title: 'Highlands Farm Fresh Produce & Organic Spices',
+        category: 'INVENTORY_PURCHASE',
+        amount: 280000.00,
+        description: 'Bulk order of artisanal spices, coconut milk, lagoon crab, and basmati rice',
+        payment_method: 'BANK_TRANSFER',
+        recorded_by: 'Kasun Bandara (Manager)',
+        expense_date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0]
+      },
+      {
+        title: 'Commercial Kitchen Gas & High-Capacity Electricity Overhead',
+        category: 'UTILITIES',
+        amount: 145000.00,
+        description: 'Monthly utility billing for high-heat clay ovens, refrigeration, and lighting',
+        payment_method: 'DIRECT_DEBIT',
+        recorded_by: 'Duminda Alwis (Admin)',
+        expense_date: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+      },
+      {
+        title: 'Royal Heritage Dining Hall Maintenance & Ambience Tuning',
+        category: 'OPERATIONAL_OVERHEAD',
+        amount: 85000.00,
+        description: 'Brass polishing, teak table oiling, traditional lamp oils, and floral decor',
+        payment_method: 'CASH',
+        recorded_by: 'Kasun Bandara (Manager)',
+        expense_date: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0]
+      },
+      {
+        title: 'Eco-Luxury Takeaway Boxes & Biodegradable Packaging',
+        category: 'OPERATIONAL_OVERHEAD',
+        amount: 42000.00,
+        description: 'Custom banana-leaf lined insulated meal containers and branded delivery bags',
+        payment_method: 'ONLINE',
+        recorded_by: 'Kasun Bandara (Manager)',
+        expense_date: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0]
+      }
+    ];
+
+    for (const exp of defaultExpenses) {
+      await pool.query(
+        `INSERT INTO expenses (title, category, amount, description, payment_method, recorded_by, expense_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [exp.title, exp.category, exp.amount, exp.description, exp.payment_method, exp.recorded_by, exp.expense_date]
+      );
+    }
+    console.log('✅ [AutoMigration]: Baseline expenses & payroll seeded successfully.');
+  }
+};
+
+/**
  * Verifies table existence and automatically applies schema.sql and seeds.sql
  * in an idempotent, safe manner before Express starts listening.
  * @param {Object} options
@@ -307,10 +421,64 @@ const runAutoMigration = async (options = {}) => {
         ALTER TABLE order_items ALTER COLUMN menu_item_id DROP NOT NULL;
         ALTER TABLE order_items ADD COLUMN IF NOT EXISTS inventory_item_id INT REFERENCES inventory_items(id) ON DELETE SET NULL;
         ALTER TABLE order_items ADD COLUMN IF NOT EXISTS item_name VARCHAR(255);
+
+        CREATE TABLE IF NOT EXISTS inquiries (
+          id SERIAL PRIMARY KEY,
+          full_name VARCHAR(150) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          phone VARCHAR(50),
+          inquiry_type VARCHAR(100) NOT NULL DEFAULT 'General Inquiry',
+          message TEXT NOT NULL,
+          status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+          admin_reply TEXT,
+          replied_at TIMESTAMPTZ,
+          replied_by VARCHAR(150),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS expenses (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(200) NOT NULL,
+          category VARCHAR(100) NOT NULL DEFAULT 'OPERATIONAL_OVERHEAD',
+          amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+          expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          description TEXT,
+          payment_method VARCHAR(50) DEFAULT 'BANK_TRANSFER',
+          recorded_by VARCHAR(150),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+          id INT PRIMARY KEY DEFAULT 1,
+          restaurant_name VARCHAR(255) NOT NULL DEFAULT 'Raalahami Royal Heritage Restaurant',
+          tagline VARCHAR(255) DEFAULT 'Authentic Ceylon Heritage & Royal Dining Experience',
+          address VARCHAR(255) NOT NULL DEFAULT 'Riverside Road, Ratnapura, Sri Lanka',
+          phone VARCHAR(50) NOT NULL DEFAULT '+94 77 123 4567',
+          email VARCHAR(150) NOT NULL DEFAULT 'info@raalahami.lk',
+          website VARCHAR(150) DEFAULT 'https://raalahami.lk',
+          currency_symbol VARCHAR(20) NOT NULL DEFAULT 'LKR',
+          tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+          service_charge_rate NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+          delivery_fee NUMERIC(10, 2) NOT NULL DEFAULT 350.00,
+          opening_time VARCHAR(20) DEFAULT '10:00 AM',
+          closing_time VARCHAR(20) DEFAULT '11:00 PM',
+          is_dine_in_enabled BOOLEAN DEFAULT TRUE,
+          is_delivery_enabled BOOLEAN DEFAULT TRUE,
+          is_takeaway_enabled BOOLEAN DEFAULT TRUE,
+          order_notification_email VARCHAR(150) DEFAULT 'orders@raalahami.lk',
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT INTO settings (id, restaurant_name, tagline, address, phone, email, website, currency_symbol, tax_rate, service_charge_rate, delivery_fee, opening_time, closing_time, is_dine_in_enabled, is_delivery_enabled, is_takeaway_enabled, order_notification_email)
+        VALUES (1, 'Raalahami Royal Heritage Restaurant', 'Authentic Ceylon Heritage & Royal Dining Experience', 'Riverside Road, Ratnapura, Sri Lanka', '+94 77 123 4567', 'info@raalahami.lk', 'https://raalahami.lk', 'LKR', 0.00, 0.00, 350.00, '10:00 AM', '11:00 PM', TRUE, TRUE, TRUE, 'orders@raalahami.lk')
+        ON CONFLICT (id) DO NOTHING;
       `);
 
       // Seed / Update Beverage and Water Bottle Size Variants (500ml, 1L, 1.5L, 2L)
       await seedBeverageVariants();
+      await seedExpenses();
     } catch (colErr) {
       console.warn(`[AutoMigration]: Optional column check notice: ${colErr.message}`);
     }

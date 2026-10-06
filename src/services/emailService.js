@@ -750,15 +750,212 @@ const sendPasswordResetOtp = async (toEmail, otpCode) => {
   }
 };
 
+/**
+ * 4. Unified Royal Heritage Email Template Generator
+ * Guarantees 100% design consistency across all outgoing admin responses and palace communications.
+ */
+const generateRoyalEmailTemplate = ({
+  patronName = 'Valued Guest',
+  inquiryType = 'General Inquiry',
+  originalMessage = '',
+  adminReply = '',
+  inquiryId = '',
+  preheader = '',
+  repliedBy = 'Palace Concierge Administrator',
+}) => {
+  const cleanCustomerName = (patronName || 'Valued Guest').replace(/^Hon\.\s*/i, '').trim();
+  const title = `Raalahami Royal Palace Concierge - Response to Your Inquiry: ${inquiryType}`;
+  const previewText = preheader || `Official Royal Concierge response regarding "${inquiryType}" at Raalahami Restaurant.`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #080c14; font-family: 'Georgia', 'Cambria', Times, serif; color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+  <!-- Preview Text -->
+  <div style="display:none;font-size:1px;color:#333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+    ${previewText}
+  </div>
+
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #080c14; padding: 40px 15px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 620px; background-color: #111827; border: 1px solid #d4af37; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);">
+          
+          <!-- 1. Royal Crest Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #111827 100%); padding: 32px 24px; text-align: center; border-bottom: 2px solid #d4af37;">
+              <div style="display: inline-block; padding: 6px 16px; border-radius: 9999px; background-color: rgba(212, 175, 55, 0.12); border: 1px solid rgba(212, 175, 55, 0.35); color: #f59e0b; font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                👑 PALACE CONCIERGE & FINE DINING
+              </div>
+              <h1 style="color: #f59e0b; margin: 0; font-size: 28px; letter-spacing: 3px; text-transform: uppercase; font-weight: 800;">
+                RAALAHAMI
+              </h1>
+              <p style="color: #cbd5e1; margin: 6px 0 0; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                Royal Heritage Fine Dining • Ratnapura
+              </p>
+            </td>
+          </tr>
+
+          <!-- 2. Main Content Body -->
+          <tr>
+            <td style="padding: 36px 30px;">
+              <!-- Title & Category Badge -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-bottom: 1px solid rgba(212, 175, 55, 0.3); padding-bottom: 14px; margin-bottom: 22px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #fbbf24; font-size: 21px; margin: 0; font-weight: 700;">
+                      Palace Concierge Response
+                    </h2>
+                    <span style="font-size: 12px; color: #94a3b8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: inline-block; margin-top: 4px;">
+                      Subject: <strong style="color: #e2e8f0;">${inquiryType}</strong>${inquiryId ? ` • Reference: <strong style="color: #f59e0b;">#${inquiryId}</strong>` : ''}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Salutation -->
+              <p style="color: #e2e8f0; font-size: 16px; line-height: 1.7; margin: 0 0 14px 0;">
+                Ayubowan <strong>Hon. ${cleanCustomerName}</strong>,
+              </p>
+              <p style="color: #cbd5e1; font-size: 14.5px; line-height: 1.7; margin: 0 0 24px 0;">
+                Thank you for contacting <strong>Raalahami Restaurant</strong>. Our Royal Maître d' and Concierge Team have carefully reviewed your message and are pleased to provide the official response below.
+              </p>
+
+              <!-- Official Response Card -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #1e293b; border-left: 4px solid #f59e0b; border-right: 1px solid rgba(212, 175, 55, 0.25); border-top: 1px solid rgba(212, 175, 55, 0.25); border-bottom: 1px solid rgba(212, 175, 55, 0.25); border-radius: 8px; margin: 0 0 24px 0;">
+                <tr>
+                  <td style="padding: 22px;">
+                    <div style="font-size: 11px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1.5px; font-weight: bold; margin-bottom: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                      👑 Official Royal Response ${repliedBy ? `(${repliedBy})` : ''}:
+                    </div>
+                    <div style="color: #ffffff; font-size: 15px; line-height: 1.8; white-space: pre-wrap; font-style: normal;">
+                      ${adminReply}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Original Customer Inquiry Quote -->
+              ${originalMessage ? `
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: rgba(15, 23, 42, 0.65); border: 1px solid #334155; border-radius: 8px; margin: 0 0 24px 0;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <span style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; display: block; margin-bottom: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                      Your Inquiry (${inquiryType}):
+                    </span>
+                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.6; margin: 0; font-style: italic;">
+                      "${originalMessage}"
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
+
+              <!-- Verified Palace Coordinates Box -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: rgba(212, 175, 55, 0.07); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 10px; margin: 0 0 24px 0;">
+                <tr>
+                  <td style="padding: 18px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <span style="color: #fbbf24; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px;">
+                      📍 Palace Coordinates & Instant Desk:
+                    </span>
+                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.7; margin: 0;">
+                      • <strong>Location:</strong> Riverside Road, Ratnapura, Sabaragamuwa Province, Sri Lanka<br/>
+                      • <strong>Direct Telephone:</strong> +94 45 222 3456 / +94 77 123 4567<br/>
+                      • <strong>WhatsApp VIP Concierge:</strong> +94 77 123 4567<br/>
+                      • <strong>Online Menu & Reservations:</strong> <a href="${process.env.CORS_ORIGIN || 'http://localhost:3000'}" style="color: #f59e0b; text-decoration: underline; font-weight: bold;">Visit Raalahami Portal</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color: #94a3b8; font-size: 12.5px; margin: 0; text-align: center; line-height: 1.6; font-style: italic;">
+                We remain honored to be at your royal service and look forward to welcoming you to the palace.
+              </p>
+            </td>
+          </tr>
+
+          <!-- 3. Royal Footer -->
+          <tr>
+            <td style="background-color: #0f172a; padding: 22px 24px; text-align: center; border-top: 1px solid #1e293b; font-size: 11.5px; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <p style="margin: 0 0 6px 0; color: #94a3b8;">
+                © ${new Date().getFullYear()} Raalahami Fine Dining Restaurant. All Royal Rights Reserved.
+              </p>
+              <p style="margin: 0; color: #64748b; font-size: 11px;">
+                Riverside Road, Ratnapura, Sri Lanka • Allergen Notice: Tree nuts, mustard & shellfish prepared on premises.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
+/**
+ * 5. Send Royal Inquiry Response Email to Customer
+ */
+const sendInquiryReplyEmail = async ({
+  toEmail,
+  customerName = 'Valued Guest',
+  inquirySubject = 'General Inquiry',
+  originalMessage = '',
+  adminReply = '',
+  inquiryId = '',
+  repliedBy = 'Palace Concierge Administrator',
+}) => {
+  const subject = `Raalahami Royal Palace Concierge - Response to Your Inquiry: ${inquirySubject}`;
+
+  console.log('\n==================================================');
+  console.log(`📩 [INQUIRY RESPONSE DISPATCH] Recipient: ${toEmail} | Subject: ${inquirySubject}`);
+  console.log(`💬 Admin Reply: "${adminReply}"`);
+  console.log('==================================================\n');
+
+  // Strictly utilize the unified Royal Heritage HTML template generator
+  const html = generateRoyalEmailTemplate({
+    patronName: customerName,
+    inquiryType: inquirySubject,
+    originalMessage,
+    adminReply,
+    inquiryId,
+    repliedBy,
+  });
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || `"Raalahami Concierge" <${smtpUser}>`,
+    to: toEmail,
+    subject,
+    html,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ [INQUIRY REPLY EMAIL DISPATCHED TO GMAIL]:', info.messageId, 'Recipient:', toEmail);
+    return { success: true, messageId: info.messageId, html };
+  } catch (error) {
+    console.warn('⚠️ [INQUIRY REPLY EMAIL WARNING]: Could not dispatch SMTP email (using simulated response):', error.message || error);
+    return { success: false, error: error.message, simulated: true, html };
+  }
+};
+
 const emailService = {
   transporter,
   resolvePaymentMethodName,
   formatDiningDate,
   formatDiningTime,
   generateDineInEmailHtml,
+  generateRoyalEmailTemplate,
   sendWelcomeEmail,
   sendOrderConfirmationEmail,
   sendPasswordResetOtp,
+  sendInquiryReplyEmail,
 };
 
 module.exports = emailService;

@@ -409,6 +409,111 @@ const mapMenuItemRecipe = async (menuItemId, inventoryItemId, quantityRequired) 
   return result.rows[0];
 };
 
+/**
+ * Generate Comprehensive Daily Inventory & Stock Movement Report
+ * @param {string} date - 'YYYY-MM-DD'
+ */
+const getDailyInventoryReport = async (date) => {
+  const resolvedDate = (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) 
+    ? date.trim() 
+    : new Date().toISOString().split('T')[0];
+
+  const inventoryItems = await InventoryModel.findAll({});
+
+  // 1. Calculate stock consumption from direct inventory and recipe bill-of-materials on the chosen date
+  const consumptionQuery = `
+    SELECT 
+      COALESCE(inv.name, 'Ingredient') AS name,
+      COALESCE(inv.unit, 'units') AS unit,
+      COALESCE(inv.category, 'General') AS category,
+      SUM(
+        CASE 
+          WHEN oi.inventory_item_id IS NOT NULL THEN oi.quantity
+          WHEN mir.quantity_required IS NOT NULL THEN (oi.quantity * mir.quantity_required)
+          ELSE 0
+        END
+      )::numeric AS consumed_quantity
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN menu_item_recipes mir ON mir.menu_item_id = oi.menu_item_id
+    LEFT JOIN inventory_items inv ON (inv.id = oi.inventory_item_id OR inv.id = mir.inventory_item_id)
+    WHERE o.status != 'CANCELLED'
+      AND o.created_at >= '${resolvedDate} 00:00:00' 
+      AND o.created_at <= '${resolvedDate} 23:59:59'
+      AND inv.id IS NOT NULL
+    GROUP BY inv.name, inv.unit, inv.category
+    ORDER BY consumed_quantity DESC;
+  `;
+
+  const consumptionRes = await db.query(consumptionQuery);
+  const consumedItems = consumptionRes.rows.map(row => ({
+    name: row.name,
+    unit: row.unit,
+    category: row.category,
+    consumedQuantity: parseFloat(row.consumed_quantity) || 0,
+    formattedQuantity: `${parseFloat(row.consumed_quantity).toFixed(2)} ${row.unit}`
+  }));
+
+  const totalItems = inventoryItems.length;
+  let healthyCount = 0;
+  let lowStockCount = 0;
+  let outOfStockCount = 0;
+  let totalStockUnits = 0;
+
+  const enrichedItems = inventoryItems.map(item => {
+    const stock = parseFloat(item.currentStock ?? item.stock ?? item.current_stock ?? 0);
+    const threshold = parseFloat(item.minimumThreshold ?? item.threshold ?? item.minimum_threshold ?? 0);
+    totalStockUnits += stock;
+
+    let status = 'HEALTHY';
+    if (stock <= 0) {
+      status = 'OUT_OF_STOCK';
+      outOfStockCount++;
+    } else if (stock <= threshold) {
+      status = 'LOW_STOCK';
+      lowStockCount++;
+    } else {
+      healthyCount++;
+    }
+
+    return {
+      id: item.id,
+      name: item.name,
+      category: item.category || 'General',
+      supplier: item.supplier || 'Local Supplier',
+      unit: item.unit || 'units',
+      currentStock: stock,
+      stock: stock,
+      minimumThreshold: threshold,
+      threshold: threshold,
+      status,
+      variants: item.variants || []
+    };
+  });
+
+  const totalConsumedUnits = consumedItems.reduce((sum, i) => sum + i.consumedQuantity, 0);
+
+  return {
+    success: true,
+    reportType: 'DAILY_INVENTORY_STOCK_REPORT',
+    date: resolvedDate,
+    formattedDate: new Date(resolvedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalItems,
+      healthyCount,
+      lowStockCount,
+      outOfStockCount,
+      stockHealthPercent: totalItems > 0 ? `${((healthyCount / totalItems) * 100).toFixed(1)}%` : '100%',
+      totalStockUnits: Math.round(totalStockUnits),
+      totalConsumedUnits: parseFloat(totalConsumedUnits.toFixed(2)),
+      totalConsumedUnitsFormatted: `${totalConsumedUnits.toFixed(2)} units`
+    },
+    inventory: enrichedItems,
+    consumedItems
+  };
+};
+
 module.exports = {
   INVENTORY_CATEGORIES,
   getInventory,
@@ -419,4 +524,5 @@ module.exports = {
   deductInventoryStock,
   restockInventoryStock,
   mapMenuItemRecipe,
+  getDailyInventoryReport,
 };

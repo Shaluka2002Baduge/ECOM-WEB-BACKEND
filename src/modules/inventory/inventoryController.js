@@ -176,6 +176,17 @@ const deductStock = async (req, res, next) => {
   }
 };
 
+const getDailyInventoryReport = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    const report = await inventoryService.getDailyInventoryReport(date);
+
+    res.status(200).json(report);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getInventory,
   addInventoryItem,
@@ -184,4 +195,5 @@ module.exports = {
   deleteInventoryItem,
   deductStock,
   mapRecipe,
+  getDailyInventoryReport,
 };

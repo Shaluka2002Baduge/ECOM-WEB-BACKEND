@@ -8,8 +8,11 @@ router.use(verifyToken);
 router.use(requireRole(['ADMIN', 'MANAGER']));
 
 router.get('/', staffController.getStaff);
+router.get('/:id', staffController.getStaffById);
 router.post('/', staffController.createStaff);
+router.patch('/:id', staffController.updateStaff);
+router.put('/:id', staffController.updateStaff);
 router.patch('/:id/role', staffController.updateRole);
+router.delete('/:id', staffController.deleteStaff);
 
 module.exports = router;
-

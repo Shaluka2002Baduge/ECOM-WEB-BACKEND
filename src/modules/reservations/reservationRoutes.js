@@ -22,6 +22,8 @@ router.delete('/:id', reservationsController.deleteReservation);
 router.use(optionalToken);
 router.post('/', reservationsController.createReservation);
 router.get('/', reservationsController.getReservations);
+router.get('/reports/daily', reservationsController.getDailyReservationsReport);
+router.get('/daily-report', reservationsController.getDailyReservationsReport);
 
 // 5. Status transition
 router.patch('/:id/status', reservationsController.updateStatus);

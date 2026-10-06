@@ -473,8 +473,23 @@ const createDineInReservation = async ({
 
 /**
  * Retrieve reservations with linked order information & patron details
+ * Supports user context, status filter, specific date, or date range
  */
-const getReservations = async (requestingUser, statusFilter) => {
+const getReservations = async (requestingUser, statusFilterOrOptions) => {
+  let status = null;
+  let targetDate = null;
+  let startDate = null;
+  let endDate = null;
+
+  if (typeof statusFilterOrOptions === 'object' && statusFilterOrOptions !== null) {
+    status = statusFilterOrOptions.status || null;
+    targetDate = statusFilterOrOptions.date || null;
+    startDate = statusFilterOrOptions.startDate || null;
+    endDate = statusFilterOrOptions.endDate || null;
+  } else if (typeof statusFilterOrOptions === 'string') {
+    status = statusFilterOrOptions;
+  }
+
   let queryText = `
     SELECT r.*, 
            t.table_number, 
@@ -503,15 +518,90 @@ const getReservations = async (requestingUser, statusFilter) => {
     queryText += ` AND r.user_id = $${params.length}`;
   }
 
-  if (statusFilter) {
-    params.push(statusFilter);
+  if (status) {
+    params.push(status);
     queryText += ` AND r.status = $${params.length}`;
+  }
+
+  if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(String(targetDate).trim())) {
+    const d = String(targetDate).trim();
+    params.push(d, `${d} 00:00:00`, `${d} 23:59:59`);
+    queryText += ` AND (r.reservation_date = $${params.length - 2} OR (r.reservation_time >= $${params.length - 1} AND r.reservation_time <= $${params.length}))`;
+  } else if (startDate && endDate) {
+    params.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+    queryText += ` AND ((r.reservation_date >= $${params.length - 3} AND r.reservation_date <= $${params.length - 2}) OR (r.reservation_time >= $${params.length - 1} AND r.reservation_time <= $${params.length}))`;
   }
 
   queryText += ' ORDER BY r.reservation_time ASC';
 
   const result = await db.query(queryText, params);
   return result.rows;
+};
+
+/**
+ * Generate Comprehensive Daily Reservations & Seating Report
+ * @param {string} date - 'YYYY-MM-DD'
+ */
+const getDailyReservationsReport = async (date) => {
+  const resolvedDate = (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) 
+    ? date.trim() 
+    : new Date().toISOString().split('T')[0];
+
+  const reservations = await getReservations(null, { date: resolvedDate });
+
+  const totalBookings = reservations.length;
+  let totalGuests = 0;
+  let completedCount = 0;
+  let seatedCount = 0;
+  let confirmedCount = 0;
+  let pendingCount = 0;
+  let cancelledCount = 0;
+
+  const hallStats = {
+    'Royal Dining Hall': { bookings: 0, guests: 0 },
+    'Balcony Court': { bookings: 0, guests: 0 },
+    'Private Suite': { bookings: 0, guests: 0 }
+  };
+
+  reservations.forEach(r => {
+    const size = parseInt(r.party_size || 2, 10);
+    const hall = r.hall_name || 'Royal Dining Hall';
+
+    if (r.status === 'CANCELLED') {
+      cancelledCount++;
+    } else {
+      totalGuests += size;
+      if (r.status === 'COMPLETED') completedCount++;
+      else if (r.status === 'SEATED') seatedCount++;
+      else if (r.status === 'CONFIRMED') confirmedCount++;
+      else if (r.status === 'PENDING') pendingCount++;
+
+      if (hallStats[hall]) {
+        hallStats[hall].bookings++;
+        hallStats[hall].guests += size;
+      }
+    }
+  });
+
+  return {
+    success: true,
+    reportType: 'DAILY_RESERVATIONS_SEATING_REPORT',
+    date: resolvedDate,
+    formattedDate: new Date(resolvedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalBookings,
+      totalGuests,
+      activeGuests: totalGuests,
+      completedCount,
+      seatedCount,
+      confirmedCount,
+      pendingCount,
+      cancelledCount,
+      halls: hallStats
+    },
+    reservations
+  };
 };
 
 /**
@@ -776,6 +866,7 @@ module.exports = {
   createReservation,
   createDineInReservation,
   getReservations,
+  getDailyReservationsReport,
   updateReservationStatus,
   deleteReservation,
   markDeparted,

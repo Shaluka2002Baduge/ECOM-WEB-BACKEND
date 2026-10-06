@@ -427,9 +427,24 @@ const getOrders = async (requestingUser, statusFilter) => {
 
 /**
  * Retrieve all orders for Admin Views
+ * Supports status, specific single date, or date range filtering
  * Uses LEFT JOIN on reservations, tables, users so Home Delivery and Takeaway orders are never omitted
  */
-const getAdminOrders = async (statusFilter = null) => {
+const getAdminOrders = async (statusFilterOrOptions = null) => {
+  let status = null;
+  let targetDate = null;
+  let startDate = null;
+  let endDate = null;
+
+  if (typeof statusFilterOrOptions === 'object' && statusFilterOrOptions !== null) {
+    status = statusFilterOrOptions.status || null;
+    targetDate = statusFilterOrOptions.date || null;
+    startDate = statusFilterOrOptions.startDate || null;
+    endDate = statusFilterOrOptions.endDate || null;
+  } else if (typeof statusFilterOrOptions === 'string') {
+    status = statusFilterOrOptions;
+  }
+
   let queryText = `
     SELECT 
       o.id,
@@ -458,9 +473,18 @@ const getAdminOrders = async (statusFilter = null) => {
   `;
   const params = [];
 
-  if (statusFilter) {
-    params.push(statusFilter);
+  if (status) {
+    params.push(status);
     queryText += ` AND o.status = $${params.length}`;
+  }
+
+  if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(String(targetDate).trim())) {
+    const d = String(targetDate).trim();
+    params.push(`${d} 00:00:00`, `${d} 23:59:59`);
+    queryText += ` AND o.created_at >= $${params.length - 1} AND o.created_at <= $${params.length}`;
+  } else if (startDate && endDate) {
+    params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+    queryText += ` AND o.created_at >= $${params.length - 1} AND o.created_at <= $${params.length}`;
   }
 
   queryText += ' ORDER BY o.created_at DESC';
@@ -521,6 +545,83 @@ const getAdminOrders = async (statusFilter = null) => {
       updated_at: order.updated_at,
     };
   });
+};
+
+/**
+ * Generate Comprehensive Daily Order Fulfillment Report
+ * @param {string} date - 'YYYY-MM-DD'
+ */
+const getDailyOrdersReport = async (date) => {
+  const resolvedDate = (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) 
+    ? date.trim() 
+    : new Date().toISOString().split('T')[0];
+
+  const orders = await getAdminOrders({ date: resolvedDate });
+
+  const totalOrders = orders.length;
+  let completedOrders = 0;
+  let cancelledOrders = 0;
+  let activeOrders = 0;
+  let grossSales = 0;
+  let dineInCount = 0;
+  let takeawayCount = 0;
+  let deliveryCount = 0;
+  let dineInRevenue = 0;
+  let takeawayRevenue = 0;
+  let deliveryRevenue = 0;
+
+  orders.forEach((o) => {
+    const amount = parseFloat(o.total_amount || 0);
+    if (o.status === 'CANCELLED') {
+      cancelledOrders++;
+    } else {
+      grossSales += amount;
+      if (o.status === 'COMPLETED' || o.status === 'DELIVERED') {
+        completedOrders++;
+      } else {
+        activeOrders++;
+      }
+
+      if (o.order_type === 'DINE_IN') {
+        dineInCount++;
+        dineInRevenue += amount;
+      } else if (o.order_type === 'TAKEAWAY') {
+        takeawayCount++;
+        takeawayRevenue += amount;
+      } else if (o.order_type === 'DELIVERY') {
+        deliveryCount++;
+        deliveryRevenue += amount;
+      }
+    }
+  });
+
+  const averageOrderValue = (totalOrders - cancelledOrders) > 0 
+    ? Math.round(grossSales / (totalOrders - cancelledOrders)) 
+    : 0;
+
+  return {
+    success: true,
+    reportType: 'DAILY_ORDER_FULFILLMENT_REPORT',
+    date: resolvedDate,
+    formattedDate: new Date(resolvedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalOrders,
+      completedOrders,
+      cancelledOrders,
+      activeOrders,
+      grossSales,
+      grossSalesFormatted: `LKR ${grossSales.toLocaleString()}`,
+      averageOrderValue,
+      averageOrderValueFormatted: `LKR ${averageOrderValue.toLocaleString()}`,
+      channels: {
+        dineIn: { count: dineInCount, revenue: dineInRevenue, formatted: `LKR ${dineInRevenue.toLocaleString()}` },
+        takeaway: { count: takeawayCount, revenue: takeawayRevenue, formatted: `LKR ${takeawayRevenue.toLocaleString()}` },
+        delivery: { count: deliveryCount, revenue: deliveryRevenue, formatted: `LKR ${deliveryRevenue.toLocaleString()}` }
+      }
+    },
+    orders
+  };
 };
 
 const ALLOWED_STATUSES_BY_FULFILLMENT = {
@@ -908,6 +1009,7 @@ module.exports = {
   getOrders,
   getOrdersByEmail,
   getAdminOrders,
+  getDailyOrdersReport,
   transitionOrderStatus,
   updateOrderStatusByAdmin,
   formatFulfillmentType,

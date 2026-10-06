@@ -9,6 +9,8 @@ router.use(verifyToken);
 router.use(requireRole(['ADMIN', 'MANAGER']));
 
 router.get('/', inventoryController.getInventory);
+router.get('/reports/daily', inventoryController.getDailyInventoryReport);
+router.get('/daily-report', inventoryController.getDailyInventoryReport);
 router.post('/', upload.single('image'), inventoryController.addInventoryItem);
 router.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {

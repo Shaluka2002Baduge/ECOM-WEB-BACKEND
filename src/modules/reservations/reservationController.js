@@ -120,13 +120,28 @@ const createReservation = async (req, res, next) => {
  */
 const getReservations = async (req, res, next) => {
   try {
-    const { status } = req.query;
-    const reservations = await reservationsService.getReservations(req.user, status);
+    const { status, date, startDate, endDate } = req.query;
+    const reservations = await reservationsService.getReservations(req.user, { status, date, startDate, endDate });
     res.status(200).json({
       success: true,
       count: reservations.length,
       data: reservations,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Generate Comprehensive Daily Reservations & Seating Report
+ * GET /api/reservations/reports/daily?date=YYYY-MM-DD
+ */
+const getDailyReservationsReport = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    const report = await reservationsService.getDailyReservationsReport(date);
+
+    res.status(200).json(report);
   } catch (error) {
     next(error);
   }
@@ -263,6 +278,7 @@ module.exports = {
   checkAvailability,
   createReservation,
   getReservations,
+  getDailyReservationsReport,
   updateStatus,
   updateTableStatus,
   deleteReservation,

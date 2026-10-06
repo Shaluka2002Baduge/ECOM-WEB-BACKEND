@@ -115,8 +115,8 @@ const getSystemHealth = async (req, res, next) => {
  */
 const getAdminOrders = async (req, res, next) => {
   try {
-    const { status } = req.query;
-    const orders = await ordersService.getAdminOrders(status);
+    const { status, date, startDate, endDate } = req.query;
+    const orders = await ordersService.getAdminOrders({ status, date, startDate, endDate });
 
     res.status(200).json({
       success: true,
@@ -125,6 +125,21 @@ const getAdminOrders = async (req, res, next) => {
       data: orders,
       orders: orders,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Generate Comprehensive Daily Order Fulfillment Report
+ * GET /api/admin/orders/reports/daily?date=YYYY-MM-DD
+ */
+const getDailyOrdersReport = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    const report = await ordersService.getDailyOrdersReport(date);
+
+    res.status(200).json(report);
   } catch (error) {
     next(error);
   }
@@ -170,6 +185,7 @@ module.exports = {
   getDashboardStats,
   getAdminUsers,
   getAdminOrders,
+  getDailyOrdersReport,
   getSystemHealth,
   updateAdminOrderStatus,
 };
